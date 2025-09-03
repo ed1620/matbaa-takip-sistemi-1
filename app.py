@@ -24,13 +24,14 @@ load_dotenv()
 
 app = Flask(__name__)
 
-# Veritabanını uygulama başlarken başlat
-try:
-    init_db()
-    print("✅ Veritabanı başarıyla başlatıldı")
-except Exception as e:
-    print(f"❌ Veritabanı başlatılamadı: {e}")
-    # Hata olsa bile devam et
+# Veritabanını uygulama başlarken başlat (sadece main'de)
+if __name__ == '__main__':
+    try:
+        init_db()
+        print("✅ Veritabanı başarıyla başlatıldı")
+    except Exception as e:
+        print(f"❌ Veritabanı başlatılamadı: {e}")
+        # Hata olsa bile devam et
 
 # Production static files için whitenoise
 if os.environ.get('FLASK_ENV') == 'production':
@@ -1832,8 +1833,7 @@ if __name__ == '__main__':
             print("⚠️  MAIL_PASSWORD bulunamadı - Email sistemi devre dışı")
             os.environ['EMAIL_ENABLED'] = 'False'
         
-        init_db() # Veritabanını başlat
-        print("✅ Veritabanı başarıyla başlatıldı")
+        # Veritabanı zaten yukarıda başlatıldı
         
         # Production/Development port ayarı
         port = int(os.environ.get('PORT', 8080))
