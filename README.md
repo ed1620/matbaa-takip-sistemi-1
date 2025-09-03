@@ -4,80 +4,81 @@ Modern ve güvenli matbaa takip sistemi. Kitap siparişlerini takip etmek, müş
 
 ## ✨ Özellikler
 
-### 🔐 Güvenlik
-- **Bcrypt** ile güvenli şifre hash'leme
-- **Rate limiting** ile brute force koruması
-- **CSRF protection** aktif
-- **Session timeout** yönetimi
-- **Audit logging** tüm işlemler için
-- **Input validation** ve sanitization
+- **Kitap Sipariş Yönetimi** - Sipariş ekleme, düzenleme, silme
+- **Takip Sistemi** - Benzersiz takip kodları ile sipariş takibi
+- **Admin Paneli** - Kapsamlı yönetim arayüzü
+- **E-posta Bildirimleri** - Otomatik e-posta gönderimi
+- **Excel Raporları** - Detaylı raporlama sistemi
+- **İletişim Formu** - Müşteri iletişim yönetimi
+- **Güvenlik** - Bcrypt şifreleme, rate limiting
 
-### 📊 Admin Paneli
-- **Dashboard** ile genel durum görünümü
-- **Kitap yönetimi** (ekleme, düzenleme, silme)
-- **Toplu işlemler** (bulk update/delete)
-- **Gelişmiş arama** ve filtreleme
-- **Sayfalama** desteği
-- **İstatistikler** ve grafikler
-
-### 📧 E-posta Sistemi
-- **HTML e-posta şablonları**
-- **Otomatik bildirimler** (sipariş, durum değişikliği)
-- **Logo ekleme** desteği
-- **Gmail SMTP** entegrasyonu
-
-### 📈 Raporlama
-- **PDF raporları** (ReportLab)
-- **Excel raporları** (OpenPyXL)
-- **Filtreleme** seçenekleri
-- **Otomatik formatlamalı** tablolar
-
-### 🚀 Performans
-- **Redis cache** desteği
-- **Database indexing** optimizasyonu
-- **Connection pooling**
-- **Sayfalama** ile büyük veri desteği
-
-### 🔄 Real-time
-- **SocketIO** ile anlık bildirimler
-- **Durum güncellemeleri** gerçek zamanlı
-- **Admin bildirimleri**
-
-### 🗄️ Veritabanı
-- **SQLite** (development)
-- **PostgreSQL** (production desteği)
-- **Otomatik migration**
-- **Backup sistemi**
-
-## 🛠️ Kurulum
+## 🚀 Hızlı Başlangıç
 
 ### Gereksinimler
 - Python 3.8+
-- Redis (opsiyonel, cache için)
-- PostgreSQL (opsiyonel, production için)
+- Gmail hesabı (e-posta için)
 
-### 1. Bağımlılıkları Yükle
+### Kurulum
 ```bash
+# Bağımlılıkları yükle
 pip install -r requirements.txt
+
+# Uygulamayı çalıştır
+python app.py
 ```
 
-### 2. Environment Variables
-`.env` dosyası oluşturun:
+### Environment Variables
 ```env
-# Güvenlik (ZORUNLU!)
-SECRET_KEY=your_super_secret_key_change_this
-FLASK_ENV=development
-
-# Admin Kullanıcı (ZORUNLU!)
-ADMIN_USERNAME=admin
-ADMIN_PASSWORD=your_admin_password
-
-# Email (Opsiyonel)
-EMAIL_ENABLED=false
+SECRET_KEY=your_secret_key
 MAIL_USERNAME=your_email@gmail.com
 MAIL_PASSWORD=your_app_password
+ADMIN_USERNAME=admin
+ADMIN_PASSWORD=admin123
+```
 
-# Database
+## 🔑 Admin Giriş
+
+- **Kullanıcı Adı:** NARSİST
+- **Şifre:** Mavinefes25
+
+## 📧 E-posta Ayarları
+
+Gmail App Password kullanın:
+1. Gmail hesabınızda 2-Factor Authentication aktif edin
+2. Google Account → Security → App passwords
+3. "Mail" seçin ve yeni app password oluşturun
+
+## 🌐 Deployment
+
+### Render.com
+1. GitHub repository'yi bağlayın
+2. Environment variables ekleyin
+3. Deploy edin
+
+### Environment Variables (Render)
+```
+SECRET_KEY=your_secret_key
+FLASK_ENV=production
+EMAIL_ENABLED=true
+MAIL_USERNAME=your_email@gmail.com
+MAIL_PASSWORD=your_app_password
+ADMIN_USERNAME=NARSİST
+ADMIN_PASSWORD=Mavinefes25
+```
+
+## 📞 İletişim
+
+- **E-posta:** siparis@mavinefes.com.tr
+- **Telefon:** +90 258 266 55 44
+- **Adres:** Mavi Nefes Yayınları, Zümrüt, Vatan Cd No:240, 20160 Denizli Merkez/Denizli
+
+## 👨‍💻 Geliştirici
+
+**Eren Doğan** - [LinkedIn](https://www.linkedin.com/in/erendogan20/)
+
+---
+
+© 2025 Mavi Nefes Matbaa. Tüm hakları saklıdır.
 DATABASE_PATH=matbaa_takip.db
 REDIS_URL=redis://localhost:6379/0
 ```
