@@ -97,9 +97,9 @@ else:
 app.config['MAIL_SERVER'] = os.environ.get('MAIL_SERVER', 'smtp.gmail.com')
 app.config['MAIL_PORT'] = int(os.environ.get('MAIL_PORT', 587))
 app.config['MAIL_USE_TLS'] = os.environ.get('MAIL_USE_TLS', 'True').lower() == 'true'
-app.config['MAIL_USERNAME'] = os.environ.get('MAIL_USERNAME', 'eren1121623@gmail.com')
-app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD', '')  # ❌ Şifre kaldırıldı!
-app.config['MAIL_DEFAULT_SENDER'] = os.environ.get('MAIL_DEFAULT_SENDER', 'eren1121623@gmail.com')
+app.config['MAIL_USERNAME'] = os.environ.get('MAIL_USERNAME', '')
+app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD', '')
+app.config['MAIL_DEFAULT_SENDER'] = os.environ.get('MAIL_DEFAULT_SENDER', '')
 
 # E-posta gönderme aktif/pasif
 EMAIL_ENABLED = os.environ.get('EMAIL_ENABLED', 'false').lower() == 'true'
@@ -197,8 +197,8 @@ def init_db():
         pass  # Kolon zaten varsa hata vermez
     
     # Admin kullanıcısını güncelle veya oluştur - Environment variables ile
-    admin_username = os.environ.get('ADMIN_USERNAME', 'NARSİST')
-    admin_password = os.environ.get('ADMIN_PASSWORD', 'Mavinefes25')
+    admin_username = os.environ.get('ADMIN_USERNAME', 'admin')
+    admin_password = os.environ.get('ADMIN_PASSWORD', 'admin123')
     
     # Eski admin kullanıcılarını sil
     cursor.execute('DELETE FROM users WHERE username IN (?, ?, ?)', ('admin', 'NARSİST', admin_username))

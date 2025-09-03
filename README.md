@@ -57,13 +57,13 @@ Gmail App Password kullanın:
 
 ### Environment Variables (Render)
 ```
-SECRET_KEY=matbaa_takip_2025_production_secret_key
+SECRET_KEY=your_secret_key_here
 FLASK_ENV=production
 EMAIL_ENABLED=true
-MAIL_USERNAME=eren1121623@gmail.com
-MAIL_PASSWORD=tozf oanq eoko bvse
-ADMIN_USERNAME=NARSİST
-ADMIN_PASSWORD=Mavinefes25
+MAIL_USERNAME=your_email@gmail.com
+MAIL_PASSWORD=your_app_password
+ADMIN_USERNAME=your_admin_username
+ADMIN_PASSWORD=your_admin_password
 DATABASE_PATH=matbaa_takip.db
 ```
 
