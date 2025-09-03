@@ -197,12 +197,17 @@ def init_db():
         pass  # Kolon zaten varsa hata vermez
     
     # Admin kullanıcısını güncelle veya oluştur - Environment variables ile
-    admin_username = os.environ.get('ADMIN_USERNAME', 'admin')
-    admin_password = os.environ.get('ADMIN_PASSWORD', 'admin123')
+    admin_username = os.environ.get('ADMIN_USERNAME', 'NARSİST')
+    admin_password = os.environ.get('ADMIN_PASSWORD', 'Mavinefes25')
     
-    cursor.execute('DELETE FROM users WHERE username IN (?, ?)', ('admin', admin_username))
+    # Eski admin kullanıcılarını sil
+    cursor.execute('DELETE FROM users WHERE username IN (?, ?, ?)', ('admin', 'NARSİST', admin_username))
+    
+    # Yeni admin kullanıcısını oluştur
     hashed_password = hash_password(admin_password)
     cursor.execute('INSERT INTO users (username, password) VALUES (?, ?)', (admin_username, hashed_password))
+    
+    app.logger.info(f'Admin kullanıcısı oluşturuldu: {admin_username}')
     
     conn.commit()
     conn.close()
@@ -878,6 +883,9 @@ def login():
                 cursor = conn.cursor()
                 cursor.execute("SELECT id, username, password FROM users WHERE username = ?", (username,))
                 user = cursor.fetchone()
+                
+                # Debug bilgisi
+                app.logger.info(f'Login denemesi - Kullanıcı: {username}, Bulunan: {user is not None}')
                 
                 if user and verify_password(password, user[2]):
                     session.permanent = True
