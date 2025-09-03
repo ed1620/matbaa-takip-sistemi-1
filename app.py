@@ -40,33 +40,19 @@ app.secret_key = os.environ.get('SECRET_KEY', 'matbaa_takip_2025_secret_key_deve
 # CSRF Protection (temporarily disabled for testing)
 # csrf = CSRFProtect(app)
 
-# Rate Limiting - Production/Development
-if os.environ.get('FLASK_ENV') == 'production':
-    limiter = Limiter(
-        get_remote_address,
-        app=app,
-        default_limits=["200 per day", "50 per hour"],
-        storage_uri=os.environ.get('REDIS_URL', 'redis://localhost:6379/0')
-    )
-else:
-    limiter = Limiter(
-        get_remote_address,
-        app=app,
-        default_limits=["200 per day", "50 per hour"]
-    )
+# Rate Limiting - Memory storage (Redis yok)
+limiter = Limiter(
+    get_remote_address,
+    app=app,
+    default_limits=["200 per day", "50 per hour"],
+    storage_uri="memory://"
+)
 
-# Cache Configuration - Production/Development
-if os.environ.get('FLASK_ENV') == 'production':
-    cache_config = {
-        'CACHE_TYPE': 'redis',
-        'CACHE_REDIS_URL': os.environ.get('REDIS_URL', 'redis://localhost:6379/0'),
-        'CACHE_DEFAULT_TIMEOUT': 300
-    }
-else:
-    cache_config = {
-        'CACHE_TYPE': 'simple',  # Development için
-        'CACHE_DEFAULT_TIMEOUT': 300
-    }
+# Cache Configuration - Simple cache (Redis yok)
+cache_config = {
+    'CACHE_TYPE': 'simple',
+    'CACHE_DEFAULT_TIMEOUT': 300
+}
 
 cache = Cache(app, config=cache_config)
 
@@ -808,16 +794,8 @@ def health_check():
         except:
             cache_status = 'unhealthy'
         
-        # Redis durumunu kontrol et (production)
-        redis_status = 'n/a'
-        if os.environ.get('FLASK_ENV') == 'production':
-            try:
-                import redis
-                r = redis.from_url(os.environ.get('REDIS_URL', 'redis://localhost:6379/0'))
-                r.ping()
-                redis_status = 'healthy'
-            except:
-                redis_status = 'unhealthy'
+        # Redis devre dışı
+        redis_status = 'disabled'
         
         return jsonify({
             'status': 'healthy',
