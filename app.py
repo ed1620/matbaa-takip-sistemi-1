@@ -26,6 +26,16 @@ load_dotenv()
 
 app = Flask(__name__)
 
+# Veritabanını ilk request'te başlat
+@app.before_first_request
+def initialize_database():
+    """İlk request'te veritabanını başlat"""
+    try:
+        init_db()
+        app.logger.info("✅ Veritabanı başarıyla başlatıldı")
+    except Exception as e:
+        app.logger.error(f"❌ Veritabanı başlatılamadı: {e}")
+
 # Production static files için whitenoise
 if os.environ.get('FLASK_ENV') == 'production':
     try:
@@ -1820,17 +1830,10 @@ def ratelimit_handler(e):
 # Render için uygulama başlatma
 def create_app():
     """Render için uygulama oluşturma fonksiyonu"""
-    try:
-        # Veritabanını başlat
-        init_db()
-        print("✅ Veritabanı başarıyla başlatıldı")
-        return app
-    except Exception as e:
-        print(f"❌ Uygulama oluşturulamadı: {e}")
-        return app
+    return app
 
 # Render'da otomatik başlatma
-if os.environ.get('RENDER'):
+if os.environ.get('RENDER') or os.environ.get('FLASK_ENV') == 'production':
     create_app()
 
 if __name__ == '__main__':
