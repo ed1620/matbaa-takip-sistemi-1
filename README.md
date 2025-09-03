@@ -27,7 +27,7 @@ pip install -r requirements.txt
 python app.py
 ```
 
-Uygulama http://localhost:8081 adresinde çalışacaktır.
+Uygulama http://localhost:8080 adresinde çalışacaktır.
 
 ### Environment Variables
 ```env
