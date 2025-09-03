@@ -1,0 +1,708 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel - Matbaa Takip Sistemi</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f8f9fa;
+            color: #333;
+        }
+        
+        .sidebar {
+            background-color: #ffffff;
+            border-right: 1px solid #e9ecef;
+            min-height: 100vh;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 250px;
+            z-index: 1000;
+            transition: transform 0.3s ease;
+        }
+        
+        .sidebar-header {
+            padding: 1.5rem;
+            border-bottom: 1px solid #e9ecef;
+            background-color: #f8f9fa;
+        }
+        
+        .sidebar-brand {
+            font-weight: 600;
+            color: #333;
+            text-decoration: none;
+        }
+        
+        .sidebar-nav {
+            padding: 1rem 0;
+        }
+        
+        .nav-link {
+            color: #666;
+            padding: 0.75rem 1.5rem;
+            border: none;
+            background: none;
+            width: 100%;
+            text-align: left;
+            font-weight: 500;
+        }
+        
+        .nav-link:hover, .nav-link.active {
+            color: #007bff;
+            background-color: #f8f9fa;
+        }
+        
+        .main-content {
+            margin-left: 250px;
+            padding: 2rem;
+            transition: margin-left 0.3s ease;
+        }
+        
+        .sidebar-toggle {
+            display: none;
+            position: fixed;
+            top: 1rem;
+            left: 1rem;
+            z-index: 1001;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 0.5rem;
+            font-size: 1.2rem;
+        }
+        
+        .stats-card {
+            background-color: #ffffff;
+            padding: 1.5rem;
+            border-radius: 8px;
+            border: 1px solid #e9ecef;
+            margin-bottom: 1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            height: 140px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+        
+        .stats-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        
+        .stats-card.clickable {
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .stats-card.clickable:hover {
+            background-color: #f8f9fa;
+            transform: translateY(-3px);
+            box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+        }
+        
+        .stats-card.clickable:active {
+            transform: translateY(-1px);
+        }
+        
+        .stats-card .stats-icon {
+            font-size: 2rem;
+        }
+        
+        .stats-card h3 {
+            font-size: 1.8rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .stats-card p {
+            font-size: 0.9rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .stats-card small {
+            font-size: 0.75rem;
+        }
+        
+        /* Mobile Responsive */
+        @media (max-width: 768px) {
+            .sidebar {
+                transform: translateX(-100%);
+            }
+            
+            .sidebar.show {
+                transform: translateX(0);
+            }
+            
+            .main-content {
+                margin-left: 0;
+                padding: 1rem;
+            }
+            
+            .sidebar-toggle {
+                display: block;
+            }
+            
+            .page-header {
+                margin-top: 3rem;
+            }
+            
+            .stats-card {
+                margin-bottom: 1rem;
+            }
+            
+            .table-responsive {
+                font-size: 0.875rem;
+            }
+            
+            .btn-sm {
+                padding: 0.25rem 0.5rem;
+                font-size: 0.75rem;
+            }
+        }
+        
+        /* Tablet Responsive */
+        @media (min-width: 769px) and (max-width: 1024px) {
+            .sidebar {
+                width: 200px;
+            }
+            
+            .main-content {
+                margin-left: 200px;
+                padding: 1.5rem;
+            }
+            
+            .stats-card {
+                padding: 1.25rem;
+            }
+        }
+        
+        .page-header {
+            background-color: #ffffff;
+            padding: 1.5rem;
+            border-radius: 8px;
+            border: 1px solid #e9ecef;
+            margin-bottom: 2rem;
+        }
+        
+        .stats-card {
+            background-color: #ffffff;
+            padding: 1.5rem;
+            border-radius: 8px;
+            border: 1px solid #e9ecef;
+            margin-bottom: 1rem;
+        }
+        
+        .stats-icon {
+            font-size: 2rem;
+        }
+        
+        .table {
+            background-color: #ffffff;
+            border-radius: 8px;
+            border: 1px solid #e9ecef;
+            overflow: hidden;
+        }
+        
+        .table th {
+            background-color: #f8f9fa;
+            border-bottom: 1px solid #e9ecef;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .table td {
+            border-bottom: 1px solid #e9ecef;
+            vertical-align: middle;
+        }
+        
+        .btn-primary {
+            background-color: #007bff;
+            border-color: #007bff;
+            font-weight: 500;
+        }
+        
+        .btn-primary:hover {
+            background-color: #0056b3;
+            border-color: #0056b3;
+        }
+        
+        .btn-success {
+            background-color: #28a745;
+            border-color: #28a745;
+            font-weight: 500;
+        }
+        
+        .btn-success:hover {
+            background-color: #218838;
+            border-color: #218838;
+        }
+        
+        .btn-danger {
+            background-color: #dc3545;
+            border-color: #dc3545;
+            font-weight: 500;
+        }
+        
+        .btn-danger:hover {
+            background-color: #c82333;
+            border-color: #c82333;
+        }
+        
+        .alert {
+            border-radius: 8px;
+            border: 1px solid #e9ecef;
+        }
+        
+        .card {
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+        }
+        
+        .card-header {
+            background-color: #f8f9fa;
+            border-bottom: 1px solid #e9ecef;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+    <!-- Mobile Menu Toggle -->
+    <button class="sidebar-toggle" id="sidebarToggle">
+        <i class="fas fa-bars"></i>
+    </button>
+    
+    <!-- Sidebar -->
+    <div class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <a href="/admin/dashboard" class="sidebar-brand d-flex justify-content-center">
+                <img src="{{ url_for('static', filename='img/logo.png') }}" alt="Mavi Nefes Logo" style="height: 60px;">
+            </a>
+        </div>
+        <nav class="sidebar-nav">
+            <a href="/admin/dashboard" class="nav-link">
+                <i class="fas fa-tachometer-alt me-2"></i>
+                Ana Sayfa
+            </a>
+            <a href="/admin/add" class="nav-link">
+                <i class="fas fa-plus me-2"></i>
+                Kitap Ekle
+            </a>
+            <a href="/track" class="nav-link">
+                <i class="fas fa-search me-2"></i>
+                Kitap Takip
+            </a>
+            <a href="/admin/contact-messages" class="nav-link">
+                <i class="fas fa-envelope me-2"></i>
+                İletişim Mesajları
+            </a>
+            <hr class="my-2">
+            <a href="/logout" class="nav-link text-danger">
+                <i class="fas fa-sign-out-alt me-2"></i>
+                Çıkış
+            </a>
+        </nav>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content">
+        <!-- Page Header -->
+        <div class="page-header">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h2 class="mb-1">Ana Sayfa</h2>
+                    <p class="text-muted mb-0">Hoş geldiniz, Admin</p>
+                </div>
+                <div>
+                    <a href="/admin/add" class="btn btn-primary">
+                        <i class="fas fa-plus me-2"></i> Yeni Kitap Ekle
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Flash Messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ 'danger' if category == 'error' else 'success' }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <!-- Stats Cards -->
+        <div class="row mb-4">
+            <div class="col-md-4">
+                <div class="stats-card clickable" onclick="showAllBooks()">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <h3 class="mb-1">{{ total_books or 0 }}</h3>
+                            <p class="mb-0 text-muted">Toplam Kitap</p>
+                        </div>
+                        <div class="stats-icon text-primary">
+                            <i class="fas fa-books"></i>
+                        </div>
+                    </div>
+                    <div class="text-end">
+                        <small class="text-muted"><i class="fas fa-arrow-right me-1"></i>Tümünü görüntüle</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="stats-card clickable" onclick="showActiveOrders()">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <h3 class="mb-1">{{ active_orders or 0 }}</h3>
+                            <p class="mb-0 text-muted">Aktif Sipariş</p>
+                        </div>
+                        <div class="stats-icon text-warning">
+                            <i class="fas fa-clock"></i>
+                        </div>
+                    </div>
+                    <div class="text-end">
+                        <small class="text-muted"><i class="fas fa-arrow-right me-1"></i>Aktif siparişleri görüntüle</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="stats-card clickable" onclick="showCompletedOrders()">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <h3 class="mb-1">{{ completed_orders or 0 }}</h3>
+                            <p class="mb-0 text-muted">Tamamlanan</p>
+                        </div>
+                        <div class="stats-icon text-success">
+                            <i class="fas fa-check-circle"></i>
+                        </div>
+                    </div>
+                    <div class="text-end">
+                        <small class="text-muted"><i class="fas fa-arrow-right me-1"></i>Tamamlanan siparişleri görüntüle</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Books Table -->
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-list me-2"></i> Son Eklenen Kitaplar
+                </h5>
+            </div>
+            <div class="card-body p-0">
+                {% if recent_books %}
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead>
+                            <tr>
+                                <th>Kitap Adı</th>
+                                <th>Yazar</th>
+                                <th>Takip Kodu</th>
+                                <th>Adet</th>
+                                <th>Durum</th>
+                                <th>İşlemler</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for book in recent_books %}
+                            <tr>
+                                <td>
+                                    <div class="d-flex align-items-center">
+                                        <div class="me-2 d-flex align-items-center justify-content-center" 
+                                             style="width: 40px; height: 40px; background-color: #f8f9fa; border-radius: 4px;">
+                                            <i class="fas fa-book text-muted"></i>
+                                        </div>
+                                        <div>
+                                            <div class="fw-medium">{{ book.title }}</div>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>{{ book.author_name }}</td>
+                                <td><span class="badge bg-secondary">{{ book.track_code }}</span></td>
+                                <td>{{ book.order_quantity }}</td>
+                                <td>
+                                    {% if book.status == 'Hazır' %}
+                                        <span class="badge bg-success">{{ book.status }}</span>
+                                    {% elif book.status == 'Üretimde' %}
+                                        <span class="badge bg-warning">{{ book.status }}</span>
+                                    {% else %}
+                                        <span class="badge bg-info">{{ book.status }}</span>
+                                    {% endif %}
+                                </td>
+                                <td>
+                                    <a href="/admin/update/{{ book.id }}" class="btn btn-sm btn-primary">
+                                        <i class="fas fa-edit me-1"></i> Güncelle
+                                    </a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+                {% else %}
+                <div class="text-center py-4">
+                    <i class="fas fa-book fa-3x text-muted mb-3"></i>
+                    <h5 class="text-muted">Henüz kitap eklenmemiş</h5>
+                    <p class="text-muted">İlk kitabınızı eklemek için aşağıdaki butona tıklayın.</p>
+                    <a href="/admin/add" class="btn btn-primary">
+                        <i class="fas fa-plus me-2"></i> Kitap Ekle
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="row mt-4">
+            <div class="col-md-6">
+                <div class="stats-card clickable" onclick="window.location.href='/admin/add'">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <h5 class="mb-1">Yeni Kitap Ekle</h5>
+                            <p class="mb-0 text-muted">Sisteme yeni kitap kaydı ekleyin</p>
+                        </div>
+                        <div class="stats-icon text-primary">
+                            <i class="fas fa-plus-circle"></i>
+                        </div>
+                    </div>
+                    <div class="text-end">
+                        <small class="text-muted"><i class="fas fa-arrow-right me-1"></i>Kitap ekle</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="stats-card">
+                    <div class="d-flex justify-content-between align-items-start">
+                        <div>
+                            <h5 class="mb-1">Excel Raporları</h5>
+                            <p class="mb-0 text-muted">Kitap verilerini Excel formatında indirin</p>
+                        </div>
+                        <div class="stats-icon text-success">
+                            <i class="fas fa-file-excel"></i>
+                        </div>
+                    </div>
+                    <div class="text-end">
+                        <div class="dropdown">
+                            <button class="btn btn-success btn-sm dropdown-toggle" type="button" id="excelDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                                <i class="fas fa-download me-1"></i> İndir
+                            </button>
+                            <ul class="dropdown-menu" aria-labelledby="excelDropdown">
+                                <li><a class="dropdown-item" href="/admin/export-excel/all">
+                                    <i class="fas fa-download me-2"></i> Tümü
+                                </a></li>
+                                <li><a class="dropdown-item" href="/admin/export-excel/active">
+                                    <i class="fas fa-download me-2"></i> Aktif
+                                </a></li>
+                                <li><a class="dropdown-item" href="/admin/export-excel/completed">
+                                    <i class="fas fa-download me-2"></i> Tamamlanan
+                                </a></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Book Lists Modal -->
+    <div class="modal fade" id="bookListModal" tabindex="-1" aria-labelledby="bookListModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="bookListModalLabel">Kitap Listesi</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="bookListContent">
+                        <!-- Content will be loaded here -->
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Kapat</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js"></script>
+    <script>
+        // SocketIO bağlantısı
+        const socket = io();
+        
+        // Yeni kitap eklendiğinde bildirim
+        socket.on('book_added', function(data) {
+            showNotification('Yeni Kitap Eklendi', data.message, 'success');
+            // Sayfa yenileme (opsiyonel)
+            setTimeout(() => {
+                location.reload();
+            }, 3000);
+        });
+        
+        // Durum güncellendiğinde bildirim
+        socket.on('status_updated', function(data) {
+            showNotification('Durum Güncellendi', data.message, 'info');
+        });
+        
+        // Bildirim gösterme fonksiyonu
+        function showNotification(title, message, type) {
+            // Toast bildirimi oluştur
+            const toastContainer = document.getElementById('toastContainer') || createToastContainer();
+            
+            const toast = document.createElement('div');
+            toast.className = `toast align-items-center text-white bg-${type === 'success' ? 'success' : type === 'error' ? 'danger' : 'info'} border-0`;
+            toast.setAttribute('role', 'alert');
+            toast.setAttribute('aria-live', 'assertive');
+            toast.setAttribute('aria-atomic', 'true');
+            
+            toast.innerHTML = `
+                <div class="d-flex">
+                    <div class="toast-body">
+                        <strong>${title}</strong><br>
+                        ${message}
+                    </div>
+                    <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+                </div>
+            `;
+            
+            toastContainer.appendChild(toast);
+            
+            const bsToast = new bootstrap.Toast(toast);
+            bsToast.show();
+            
+            // 5 saniye sonra otomatik kaldır
+            setTimeout(() => {
+                if (toast.parentNode) {
+                    toast.remove();
+                }
+            }, 5000);
+        }
+        
+        // Toast container oluştur
+        function createToastContainer() {
+            const container = document.createElement('div');
+            container.id = 'toastContainer';
+            container.className = 'toast-container position-fixed top-0 end-0 p-3';
+            container.style.zIndex = '9999';
+            document.body.appendChild(container);
+            return container;
+        }
+        
+        // Mobile sidebar toggle
+        document.getElementById('sidebarToggle').addEventListener('click', function() {
+            document.getElementById('sidebar').classList.toggle('show');
+        });
+
+        // Close sidebar when clicking outside on mobile
+        document.addEventListener('click', function(event) {
+            const sidebar = document.getElementById('sidebar');
+            const sidebarToggle = document.getElementById('sidebarToggle');
+            
+            if (window.innerWidth <= 768) {
+                if (!sidebar.contains(event.target) && !sidebarToggle.contains(event.target)) {
+                    sidebar.classList.remove('show');
+                }
+            }
+        });
+
+        // Book list functions
+        function showAllBooks() {
+            window.location.href = '/admin/books/all-page';
+        }
+
+        function showActiveOrders() {
+            window.location.href = '/admin/books/active-page';
+        }
+
+        function showCompletedOrders() {
+            window.location.href = '/admin/books/completed-page';
+        }
+
+        function generateBookTable(books) {
+            if (!books || books.length === 0) {
+                return '<div class="text-center py-4"><p class="text-muted">Kitap bulunamadı.</p></div>';
+            }
+
+            let tableHTML = `
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Kitap Adı</th>
+                                <th>Yazar</th>
+                                <th>Takip Kodu</th>
+                                <th>Adet</th>
+                                <th>Boyut</th>
+                                <th>Durum</th>
+                                <th>İşlemler</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+            `;
+
+            books.forEach(book => {
+                const statusBadge = getStatusBadge(book.status);
+                
+                tableHTML += `
+                    <tr>
+                        <td>
+                            <div class="d-flex align-items-center">
+                                <div class="me-2 d-flex align-items-center justify-content-center" style="width: 40px; height: 40px; background-color: #f8f9fa; border-radius: 4px;">
+                    <i class="fas fa-book text-muted"></i>
+                </div>
+                                <div>
+                                    <div class="fw-medium">${book.title}</div>
+                                </div>
+                            </div>
+                        </td>
+                        <td>${book.author_name}</td>
+                        <td><span class="badge bg-secondary">${book.track_code}</span></td>
+                        <td>${book.order_quantity}</td>
+                        <td>${book.size}</td>
+                        <td>${statusBadge}</td>
+                        <td>
+                            <a href="/admin/update/${book.id}" class="btn btn-sm btn-primary">
+                                <i class="fas fa-edit me-1"></i> Güncelle
+                            </a>
+                        </td>
+                    </tr>
+                `;
+            });
+
+            tableHTML += `
+                        </tbody>
+                    </table>
+                </div>
+            `;
+
+            return tableHTML;
+        }
+
+        function getStatusBadge(status) {
+            switch(status) {
+                case 'Hazır':
+                    return '<span class="badge bg-success">Hazır</span>';
+                case 'Üretimde':
+                    return '<span class="badge bg-warning">Üretimde</span>';
+                case 'Planlamada':
+                    return '<span class="badge bg-info">Planlamada</span>';
+                case 'Kontrolde':
+                    return '<span class="badge bg-info">Kontrolde</span>';
+                case 'Bekliyor':
+                    return '<span class="badge bg-secondary">Bekliyor</span>';
+                case 'Sipariş Alındı':
+                    return '<span class="badge bg-primary">Sipariş Alındı</span>';
+                default:
+                    return '<span class="badge bg-secondary">' + status + '</span>';
+            }
+        }
+    </script>
+</body>
+</html> 

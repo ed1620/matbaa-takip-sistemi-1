@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kitap Takip - Matbaa Takip Sistemi</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f8f9fa;
+            color: #333;
+        }
+        
+        .navbar {
+            background-color: #ffffff !important;
+            border-bottom: 1px solid #e9ecef;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .navbar-brand {
+            font-weight: 600;
+            color: #333 !important;
+        }
+        
+        .navbar-brand img {
+            height: 60px;
+            margin-right: 10px;
+        }
+        
+        .nav-link {
+            color: #666 !important;
+            font-weight: 500;
+            transition: color 0.3s ease;
+        }
+        
+        .nav-link:hover {
+            color: #333 !important;
+        }
+        
+        .main-content {
+            padding: 3rem 0;
+            min-height: 80vh;
+        }
+        
+        .track-form {
+            background: #ffffff;
+            padding: 2.5rem;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            border: 1px solid #e9ecef;
+            margin-bottom: 2rem;
+        }
+        
+        .book-details {
+            background: #ffffff;
+            padding: 2.5rem;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            border: 1px solid #e9ecef;
+        }
+        
+        .progress-container {
+            margin-top: 2rem;
+            padding: 2rem;
+            background-color: #f8f9fa;
+            border-radius: 12px;
+            border: 1px solid #e9ecef;
+        }
+        
+        .progress-bar {
+            height: 12px;
+            background-color: #e9ecef;
+            border-radius: 6px;
+            overflow: hidden;
+            position: relative;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #28a745 0%, #007bff 100%);
+            border-radius: 6px;
+            transition: width 0.8s ease-in-out;
+            position: relative;
+        }
+        
+        .progress-steps {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 1.5rem;
+            position: relative;
+        }
+        
+        .progress-step {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            position: relative;
+            z-index: 2;
+        }
+        
+        .step-indicator {
+            width: 45px;
+            height: 45px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 0.75rem;
+            border: 3px solid #e9ecef;
+            background-color: #ffffff;
+            transition: all 0.3s ease;
+        }
+        
+        .step-indicator.completed {
+            background-color: #28a745;
+            color: white;
+            border-color: #28a745;
+            transform: scale(1.1);
+        }
+        
+        .step-indicator.active {
+            background-color: #007bff;
+            color: white;
+            border-color: #007bff;
+            box-shadow: 0 0 0 6px rgba(0, 123, 255, 0.2);
+            transform: scale(1.1);
+        }
+        
+        .step-indicator.pending {
+            background-color: #ffffff;
+            color: #6c757d;
+            border-color: #e9ecef;
+        }
+        
+        .step-label {
+            font-size: 0.875rem;
+            font-weight: 600;
+            text-align: center;
+            color: #333;
+            max-width: 100px;
+            line-height: 1.2;
+        }
+        
+        .step-description {
+            font-size: 0.75rem;
+            color: #6c757d;
+            text-align: center;
+            margin-top: 0.25rem;
+            max-width: 100px;
+            line-height: 1.2;
+        }
+        
+        .current-status {
+            text-align: center;
+            margin-top: 2rem;
+            padding: 1.5rem;
+            background-color: #ffffff;
+            border-radius: 12px;
+            border: 1px solid #e9ecef;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+        
+        .current-status-icon {
+            font-size: 2.5rem;
+            margin-bottom: 0.75rem;
+        }
+        
+        .status-badge {
+            font-size: 2rem;
+            font-weight: 600;
+            padding: 1rem;
+            border-radius: 8px;
+            background-color: rgba(0,0,0,0.05);
+        }
+        
+        .current-status-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 0.75rem;
+        }
+        
+        .current-status-description {
+            color: #6c757d;
+            font-size: 0.95rem;
+            line-height: 1.5;
+        }
+        
+        .btn-primary {
+            background-color: #007bff;
+            border-color: #007bff;
+            font-weight: 500;
+            padding: 0.75rem 2rem;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+        }
+        
+        .btn-primary:hover {
+            background-color: #0056b3;
+            border-color: #0056b3;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 123, 255, 0.3);
+        }
+        
+        .alert {
+            border-radius: 8px;
+            border: 1px solid #e9ecef;
+        }
+        
+        .form-control {
+            border: 1px solid #ced4da;
+            border-radius: 8px;
+            padding: 0.75rem 1rem;
+            transition: all 0.3s ease;
+        }
+        
+        .form-control:focus {
+            border-color: #007bff;
+            box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+            transform: translateY(-1px);
+        }
+        
+        .form-label {
+            font-weight: 600;
+            color: #495057;
+            margin-bottom: 0.5rem;
+        }
+        
+        /* Mobile Responsive */
+        @media (max-width: 768px) {
+            .main-content {
+                padding: 2rem 0;
+            }
+            
+            .track-form, .book-details {
+                margin: 1rem;
+                padding: 1.5rem;
+            }
+            
+            .progress-steps {
+                flex-direction: column;
+                gap: 1rem;
+            }
+            
+            .progress-step {
+                flex-direction: row;
+                text-align: left;
+                align-items: center;
+            }
+            
+            .step-indicator {
+                margin-bottom: 0;
+                margin-right: 1rem;
+                width: 35px;
+                height: 35px;
+                font-size: 1rem;
+            }
+            
+            .step-label, .step-description {
+                max-width: none;
+                text-align: left;
+            }
+            
+            .navbar-brand img {
+                height: 28px;
+            }
+        }
+        
+        /* Tablet Responsive */
+        @media (min-width: 769px) and (max-width: 1024px) {
+            .track-form, .book-details {
+                padding: 2rem;
+            }
+            
+            .progress-steps {
+                gap: 0.5rem;
+            }
+            
+            .step-label {
+                max-width: 80px;
+                font-size: 0.8rem;
+            }
+            
+            .step-description {
+                max-width: 80px;
+                font-size: 0.7rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-light">
+        <div class="container">
+            <a class="navbar-brand" href="/">
+                <img src="{{ url_for('static', filename='img/logo.png') }}" alt="Mavi Nefes Logo">
+            </a>
+            
+            <div class="navbar-nav ms-auto">
+                <a class="nav-link" href="/track">
+                    <i class="fas fa-search me-1"></i> Takip
+                </a>
+                
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <section class="main-content">
+        <div class="container">
+            <!-- Flash Messages -->
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="alert alert-{{ 'danger' if category == 'error' else 'success' }} alert-dismissible fade show" role="alert">
+                            {{ message }}
+                            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                        </div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+
+            <!-- Track Form -->
+            <div class="track-form">
+                <h2 class="text-center mb-4">
+                    <i class="fas fa-search me-2"></i> Kitap Takip
+                </h2>
+                <form method="POST">
+                    <div class="row justify-content-center">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label for="track_code" class="form-label">Takip Kodunuz</label>
+                                <input type="text" class="form-control form-control-lg" id="track_code" name="track_code" 
+                                       placeholder="Takip kodunuzu buraya giriniz" value="{{ request.form.get('track_code', '') }}" required>
+                            </div>
+                            <button type="submit" class="btn btn-primary btn-lg w-100">
+                                <i class="fas fa-search me-2"></i> Sorgula
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Book Details -->
+            {% if book and found %}
+            <div class="book-details">
+                <div class="row">
+                    <div class="col-12">
+                        <h3 class="mb-4 text-primary">{{ book.title }}</h3>
+                        <div class="row">
+                            <div class="col-sm-6">
+                                <p><strong>Yazar:</strong> {{ book.author_name }}</p>
+                                <p><strong>Takip Kodu:</strong> <span class="badge bg-secondary">{{ book.track_code }}</span></p>
+                            </div>
+                            <div class="col-sm-6">
+                                <p><strong>Sipariş Miktarı:</strong> {{ book.order_quantity }}</p>
+                                <p><strong>Boyut:</strong> {{ book.size }}</p>
+                            </div>
+                        </div>
+                        
+                        <!-- Progress Bar -->
+                        <div class="progress-container">
+                            {% set statuses = ['Sipariş Alındı', 'Bekliyor', 'Kontrolde', 'Planlamada', 'Üretimde', 'Hazır'] %}
+                            {% set current_index = statuses.index(book.status) %}
+                            {% set progress_percentage = ((current_index + 1) / statuses|length) * 100 %}
+                            
+                            <div class="progress-bar-container">
+                                <div class="progress-bar">
+                                    <div class="progress-fill" style="width: {{ progress_percentage }}%"></div>
+                                </div>
+                                
+                                <div class="progress-steps">
+                                    {% for status in statuses %}
+                                        {% set step_index = loop.index0 %}
+                                        <div class="progress-step">
+                                            <div class="step-indicator 
+                                                {% if step_index < current_index %}completed
+                                                {% elif step_index == current_index %}active
+                                                {% else %}pending{% endif %}">
+                                                {% if step_index < current_index %}
+                                                    ✓
+                                                {% elif step_index == current_index %}
+                                                    {{ loop.index }}
+                                                {% else %}
+                                                    {{ loop.index }}
+                                                {% endif %}
+                                            </div>
+                                            <div class="step-label">{{ status }}</div>
+                                            <div class="step-description">
+                                                {% if status == 'Sipariş Alındı' %}
+                                                    Siparişiniz alındı
+                                                {% elif status == 'Bekliyor' %}
+                                                    Sırada bekliyor
+                                                {% elif status == 'Kontrolde' %}
+                                                    Kalite kontrolü
+                                                {% elif status == 'Planlamada' %}
+                                                    Üretim planlanıyor
+                                                {% elif status == 'Üretimde' %}
+                                                    Baskı işlemi
+                                                {% elif status == 'Hazır' %}
+                                                    Teslime hazır
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                            
+                            <!-- Current Status Display -->
+                            <div class="current-status">
+                                <div class="current-status-icon">
+                                    <div class="status-badge 
+                                        {% if book.status == 'Hazır' %}text-success
+                                        {% elif book.status == 'Üretimde' %}text-warning
+                                        {% elif book.status == 'Kontrolde' %}text-info
+                                        {% elif book.status == 'Planlamada' %}text-primary
+                                        {% elif book.status == 'Bekliyor' %}text-warning
+                                        {% else %}text-primary{% endif %}">
+                                        {{ book.status }}
+                                    </div>
+                                </div>
+                                <div class="current-status-title">{{ book.status }}</div>
+                                <div class="current-status-description">
+                                    {% if book.status == 'Sipariş Alındı' %}
+                                        Siparişiniz başarıyla alındı ve işleme alındı
+                                    {% elif book.status == 'Bekliyor' %}
+                                        Kitabınız sırada bekliyor, yakında işleme alınacak
+                                    {% elif book.status == 'Kontrolde' %}
+                                        Kitabınız kalite kontrolünden geçiyor
+                                    {% elif book.status == 'Planlamada' %}
+                                        Üretim planlaması yapılıyor
+                                    {% elif book.status == 'Üretimde' %}
+                                        Kitabınız baskı sürecinde
+                                    {% elif book.status == 'Hazır' %}
+                                        Kitabınız teslime hazır!
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </section>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

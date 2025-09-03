@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>İletişim Mesajları - Matbaa Takip Sistemi</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f8f9fa;
+            color: #333;
+        }
+        
+        .sidebar {
+            background-color: #ffffff;
+            border-right: 1px solid #e9ecef;
+            min-height: 100vh;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 250px;
+            z-index: 1000;
+            transition: transform 0.3s ease;
+        }
+        
+        .sidebar-header {
+            padding: 1.5rem;
+            border-bottom: 1px solid #e9ecef;
+            background-color: #f8f9fa;
+        }
+        
+        .sidebar-brand {
+            font-weight: 600;
+            color: #333;
+            text-decoration: none;
+        }
+        
+        .sidebar-nav {
+            padding: 1rem 0;
+        }
+        
+        .nav-link {
+            color: #666;
+            padding: 0.75rem 1.5rem;
+            border: none;
+            background: none;
+            width: 100%;
+            text-align: left;
+            font-weight: 500;
+        }
+        
+        .nav-link:hover, .nav-link.active {
+            color: #007bff;
+            background-color: #f8f9fa;
+        }
+        
+        .main-content {
+            margin-left: 250px;
+            padding: 2rem;
+            transition: margin-left 0.3s ease;
+        }
+        
+        .sidebar-toggle {
+            display: none;
+            position: fixed;
+            top: 1rem;
+            left: 1rem;
+            z-index: 1001;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 0.5rem;
+            font-size: 1.2rem;
+        }
+        
+        .page-header {
+            background-color: #ffffff;
+            padding: 1.5rem;
+            border-radius: 8px;
+            border: 1px solid #e9ecef;
+            margin-bottom: 2rem;
+        }
+        
+        .content-card {
+            background-color: #ffffff;
+            padding: 2rem;
+            border-radius: 8px;
+            border: 1px solid #e9ecef;
+            margin-bottom: 2rem;
+        }
+        
+        .stats-card {
+            background-color: #ffffff;
+            padding: 1.5rem;
+            border-radius: 8px;
+            border: 1px solid #e9ecef;
+            margin-bottom: 1rem;
+            text-align: center;
+        }
+        
+        .stats-icon {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+        }
+        
+        .stats-number {
+            font-size: 1.8rem;
+            font-weight: bold;
+        }
+        
+        .btn-primary {
+            background-color: #007bff;
+            border-color: #007bff;
+            font-weight: 500;
+        }
+        
+        .btn-primary:hover {
+            background-color: #0056b3;
+            border-color: #0056b3;
+        }
+        
+        .btn-danger {
+            background-color: #dc3545;
+            border-color: #dc3545;
+            font-weight: 500;
+        }
+        
+        .btn-danger:hover {
+            background-color: #c82333;
+            border-color: #c82333;
+        }
+        
+        .table {
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        
+        .table th {
+            background-color: #f8f9fa;
+            border-bottom: 2px solid #e9ecef;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .table td {
+            border-bottom: 1px solid #e9ecef;
+            vertical-align: middle;
+        }
+        
+        .alert {
+            border-radius: 8px;
+            border: 1px solid #e9ecef;
+        }
+        
+        .form-control {
+            border: 1px solid #ced4da;
+            border-radius: 6px;
+        }
+        
+        .form-control:focus {
+            border-color: #007bff;
+            box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+        }
+        
+        .message-preview {
+            max-width: 200px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 3rem;
+            color: #6c757d;
+        }
+        
+        .empty-state i {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+        }
+        
+        .badge {
+            font-weight: 500;
+        }
+        
+        /* Mobile Responsive */
+        @media (max-width: 768px) {
+            .sidebar {
+                transform: translateX(-100%);
+            }
+            
+            .sidebar.show {
+                transform: translateX(0);
+            }
+            
+            .main-content {
+                margin-left: 0;
+                padding: 1rem;
+            }
+            
+            .sidebar-toggle {
+                display: block;
+            }
+            
+            .page-header {
+                margin-top: 3rem;
+            }
+            
+            .content-card {
+                padding: 1.5rem;
+            }
+        }
+        
+        /* Tablet Responsive */
+        @media (min-width: 769px) and (max-width: 1024px) {
+            .sidebar {
+                width: 200px;
+            }
+            
+            .main-content {
+                margin-left: 200px;
+                padding: 1.5rem;
+            }
+            
+            .content-card {
+                padding: 2rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Mobile Menu Toggle -->
+    <button class="sidebar-toggle" id="sidebarToggle">
+        <i class="fas fa-bars"></i>
+    </button>
+    
+    <!-- Sidebar -->
+    <div class="sidebar" id="sidebar">
+        <div class="sidebar-header">
+            <a href="/admin/dashboard" class="sidebar-brand d-flex justify-content-center">
+                <img src="{{ url_for('static', filename='img/logo.png') }}" alt="Mavi Nefes Logo" style="height: 60px;">
+            </a>
+        </div>
+        <nav class="sidebar-nav">
+            <a href="/admin/dashboard" class="nav-link">
+                <i class="fas fa-tachometer-alt me-2"></i>
+                Ana Sayfa
+            </a>
+            <a href="/admin/add" class="nav-link">
+                <i class="fas fa-plus me-2"></i>
+                Kitap Ekle
+            </a>
+            <a href="/track" class="nav-link">
+                <i class="fas fa-search me-2"></i>
+                Kitap Takip
+            </a>
+            <a href="/admin/contact-messages" class="nav-link active">
+                <i class="fas fa-envelope me-2"></i>
+                İletişim Mesajları
+            </a>
+            <hr class="my-2">
+            <a href="/logout" class="nav-link text-danger">
+                <i class="fas fa-sign-out-alt me-2"></i>
+                Çıkış
+            </a>
+        </nav>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content">
+        <!-- Page Header -->
+        <div class="page-header">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h2 class="mb-1">İletişim Mesajları</h2>
+                    <p class="text-muted mb-0">Müşterilerden gelen mesajları yönetin</p>
+                </div>
+                <div>
+                    <a href="/admin/dashboard" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left me-2"></i> Geri Dön
+                    </a>
+                </div>
+            </div>
+        </div>
+
+        <!-- Flash Messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ 'danger' if category == 'error' else 'success' }} alert-dismissible fade show" role="alert">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <!-- Statistics Cards -->
+        <div class="row mb-4">
+            <div class="col-md-4">
+                <div class="stats-card">
+                    <div class="stats-icon text-primary">
+                        <i class="fas fa-envelope"></i>
+                    </div>
+                    <h5>Toplam Mesaj</h5>
+                    <div class="stats-number text-primary">{{ contact_messages|length }}</div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="stats-card">
+                    <div class="stats-icon text-success">
+                        <i class="fas fa-check-circle"></i>
+                    </div>
+                    <h5>Okunmuş</h5>
+                    <div class="stats-number text-success">{{ contact_messages|selectattr('is_read', 'equalto', True)|list|length }}</div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="stats-card">
+                    <div class="stats-icon text-warning">
+                        <i class="fas fa-exclamation-circle"></i>
+                    </div>
+                    <h5>Okunmamış</h5>
+                    <div class="stats-number text-warning">{{ contact_messages|selectattr('is_read', 'equalto', False)|list|length }}</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Messages List -->
+        <div class="content-card">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="mb-0">Mesaj Listesi</h5>
+                {% if contact_messages %}
+                <button class="btn btn-danger btn-sm" onclick="deleteAllMessages()">
+                    <i class="fas fa-trash me-1"></i> Tümünü Sil
+                </button>
+                {% endif %}
+            </div>
+
+            {% if contact_messages %}
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Gönderen</th>
+                            <th>E-posta</th>
+                            <th>Mesaj</th>
+                            <th>Tarih</th>
+                            <th>Durum</th>
+                            <th>İşlemler</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                                                 {% for message in contact_messages %}
+                         <tr data-message-id="{{ message.id }}">
+                            <td>
+                                <strong>{{ message.name }}</strong>
+                            </td>
+                            <td>
+                                <a href="mailto:{{ message.email }}">{{ message.email }}</a>
+                            </td>
+                            <td>
+                                <div class="message-preview">{{ message.message }}</div>
+                            </td>
+                            <td>
+                                <small class="text-muted">{{ message.created_at.strftime('%d.%m.%Y %H:%M') if message.created_at else '' }}</small>
+                            </td>
+                            <td>
+                                {% if message.is_read %}
+                                <span class="badge bg-success">Okundu</span>
+                                {% else %}
+                                <span class="badge bg-warning">Yeni</span>
+                                {% endif %}
+                            </td>
+                                                         <td>
+                                 <div class="btn-group" role="group">
+                                     <button class="btn btn-primary btn-sm" 
+                                             onclick="viewMessage({{ message.id }})"
+                                             title="Görüntüle">
+                                         <i class="fas fa-eye"></i>
+                                     </button>
+                                     {% if not message.is_read %}
+                                     <button class="btn btn-success btn-sm" 
+                                             onclick="markAsRead({{ message.id }})"
+                                             title="Okundu İşaretle">
+                                         <i class="fas fa-check"></i>
+                                     </button>
+                                     {% endif %}
+                                     <button class="btn btn-danger btn-sm" 
+                                             onclick="deleteMessage({{ message.id }})"
+                                             title="Sil">
+                                         <i class="fas fa-trash"></i>
+                                     </button>
+                                 </div>
+                             </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="empty-state">
+                <i class="fas fa-inbox"></i>
+                <h4>Henüz mesaj yok</h4>
+                <p>İletişim formundan gelen mesajlar burada görüntülenecek.</p>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Message Detail Modal -->
+    <div class="modal fade" id="messageModal" tabindex="-1" aria-labelledby="messageModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="messageModalLabel">Mesaj Detayı</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body" id="messageModalBody">
+                    <!-- Message content will be loaded here -->
+                </div>
+                                 <div class="modal-footer">
+                     <button type="button" class="btn btn-success" id="modalMarkAsReadBtn" style="display: none;">
+                         <i class="fas fa-check me-1"></i> Okundu İşaretle
+                     </button>
+                     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Kapat</button>
+                 </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Mobile sidebar toggle
+        document.getElementById('sidebarToggle').addEventListener('click', function() {
+            document.getElementById('sidebar').classList.toggle('show');
+        });
+
+        // Close sidebar when clicking outside on mobile
+        document.addEventListener('click', function(event) {
+            const sidebar = document.getElementById('sidebar');
+            const sidebarToggle = document.getElementById('sidebarToggle');
+            
+            if (window.innerWidth <= 768) {
+                if (!sidebar.contains(event.target) && !sidebarToggle.contains(event.target)) {
+                    sidebar.classList.remove('show');
+                }
+            }
+        });
+
+        // View message details
+        function viewMessage(messageId) {
+            fetch(`/admin/contact-messages/${messageId}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        const message = data.message;
+                        const modalBody = document.getElementById('messageModalBody');
+                        
+                        modalBody.innerHTML = `
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <p><strong>Gönderen:</strong> ${message.name}</p>
+                                    <p><strong>E-posta:</strong> <a href="mailto:${message.email}">${message.email}</a></p>
+                                </div>
+                                <div class="col-md-6">
+                                    <p><strong>Tarih:</strong> ${message.created_at}</p>
+                                    <p><strong>Durum:</strong> ${message.is_read ? 'Okundu' : 'Yeni'}</p>
+                                </div>
+                            </div>
+                            <hr>
+                            <div>
+                                <strong>Mesaj:</strong>
+                                <div class="mt-2 p-3 bg-light rounded">
+                                    ${message.message.replace(/\n/g, '<br>')}
+                                </div>
+                            </div>
+                        `;
+                        
+                        // Show modal
+                        const modal = new bootstrap.Modal(document.getElementById('messageModal'));
+                        modal.show();
+                        
+                        // Show/hide mark as read button based on message status
+                        const markAsReadBtn = document.getElementById('modalMarkAsReadBtn');
+                        if (!message.is_read) {
+                            markAsReadBtn.style.display = 'inline-block';
+                            markAsReadBtn.onclick = function() {
+                                markAsRead(messageId);
+                                modal.hide();
+                            };
+                        } else {
+                            markAsReadBtn.style.display = 'none';
+                        }
+                    } else {
+                        alert('Mesaj yüklenirken bir hata oluştu.');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Mesaj yüklenirken bir hata oluştu.');
+                });
+        }
+
+                 // Mark message as read
+         function markAsRead(messageId) {
+             fetch(`/admin/contact-messages/${messageId}/read`, {
+                 method: 'POST',
+                 headers: {
+                     'Content-Type': 'application/json',
+                 }
+             })
+             .then(response => response.json())
+             .then(data => {
+                 if (data.success) {
+                     // Update the status badge in the table
+                     const statusCell = document.querySelector(`tr[data-message-id="${messageId}"] .badge`);
+                     if (statusCell) {
+                         statusCell.className = 'badge bg-success';
+                         statusCell.textContent = 'Okundu';
+                     }
+                     
+                     // Hide the mark as read button in the table
+                     const markAsReadBtn = document.querySelector(`tr[data-message-id="${messageId}"] .btn-success`);
+                     if (markAsReadBtn) {
+                         markAsReadBtn.style.display = 'none';
+                     }
+                     
+                     // Update statistics
+                     updateMessageStats();
+                 } else {
+                     alert('Mesaj okundu olarak işaretlenirken bir hata oluştu: ' + data.error);
+                 }
+             })
+             .catch(error => {
+                 console.error('Error:', error);
+                 alert('Mesaj okundu olarak işaretlenirken bir hata oluştu.');
+             });
+         }
+         
+         // Update message statistics
+         function updateMessageStats() {
+             const totalMessages = document.querySelectorAll('tbody tr').length;
+             const readMessages = document.querySelectorAll('.badge.bg-success').length;
+             const unreadMessages = document.querySelectorAll('.badge.bg-warning').length;
+             
+             // Update stats cards
+             const totalCard = document.querySelector('.stats-number.text-primary');
+             const readCard = document.querySelector('.stats-number.text-success');
+             const unreadCard = document.querySelector('.stats-number.text-warning');
+             
+             if (totalCard) totalCard.textContent = totalMessages;
+             if (readCard) readCard.textContent = readMessages;
+             if (unreadCard) unreadCard.textContent = unreadMessages;
+         }
+
+        // Delete single message
+        function deleteMessage(messageId) {
+            if (confirm('Bu mesajı silmek istediğinizden emin misiniz?')) {
+                fetch(`/admin/contact-messages/${messageId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        location.reload();
+                    } else {
+                        alert('Mesaj silinirken bir hata oluştu: ' + data.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Mesaj silinirken bir hata oluştu.');
+                });
+            }
+        }
+
+        // Delete all messages
+        function deleteAllMessages() {
+            if (confirm('Tüm mesajları silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.')) {
+                fetch('/admin/contact-messages/delete-all', {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        location.reload();
+                    } else {
+                        alert('Mesajlar silinirken bir hata oluştu: ' + data.message);
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Mesajlar silinirken bir hata oluştu.');
+                });
+            }
+        }
+    </script>
+</body>
+</html> 
