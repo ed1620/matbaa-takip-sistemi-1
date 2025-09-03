@@ -101,11 +101,11 @@ if os.environ.get('FLASK_ENV') == 'production':
         DATABASE_URL = DATABASE_URL.replace('postgres://', 'postgresql://', 1)
     
     # Production secret key
-    app.secret_key = os.environ.get('SECRET_KEY', 'production_secret_key_change_this')
+    app.secret_key = os.environ.get('SECRET_KEY', 'matbaa_takip_2025_production_secret_key')
 else:
     app.config['DEBUG'] = True
     DATABASE_URL = None
-    app.secret_key = os.environ.get('SECRET_KEY', '')  # ❌ Default key kaldırıldı!
+    app.secret_key = os.environ.get('SECRET_KEY', 'matbaa_takip_2025_secret_key_development')
 
 # Email konfigürasyonu - Environment variables ile
 app.config['MAIL_SERVER'] = os.environ.get('MAIL_SERVER', 'smtp.gmail.com')
