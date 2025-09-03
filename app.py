@@ -20,7 +20,11 @@ from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from dotenv import load_dotenv
 
 # Environment variables yükle
-load_dotenv()
+try:
+    load_dotenv()
+except:
+    # .env dosyası yoksa veya encoding sorunu varsa devam et
+    pass
 
 app = Flask(__name__)
 
