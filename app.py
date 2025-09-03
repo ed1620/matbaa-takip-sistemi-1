@@ -5,9 +5,7 @@ from flask_limiter.util import get_remote_address
 from flask_caching import Cache
 import sqlite3
 import os
-import sys
 import logging
-from logging.handlers import RotatingFileHandler
 
 from datetime import datetime, timedelta
 import bcrypt
@@ -64,27 +62,8 @@ cache_config = {
 
 cache = Cache(app, config=cache_config)
 
-# Logging Configuration - Windows uyumlu
-if not app.debug:
-    try:
-        if not os.path.exists('logs'):
-            os.mkdir('logs')
-        file_handler = RotatingFileHandler('logs/matbaa_takip.log', maxBytes=10240, backupCount=5)
-        file_handler.setFormatter(logging.Formatter(
-            '%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]'
-        ))
-        file_handler.setLevel(logging.INFO)
-        app.logger.addHandler(file_handler)
-        app.logger.setLevel(logging.INFO)
-        app.logger.info('Matbaa Takip Sistemi başlatılıyor')
-    except Exception as e:
-        # Windows'ta logging hatası olursa console'a yaz
-        print(f'Logging hatası: {e}')
-        app.logger.setLevel(logging.INFO)
-        app.logger.info('Matbaa Takip Sistemi başlatılıyor (console mode)')
-else:
-    app.logger.setLevel(logging.INFO)
-    app.logger.info('Matbaa Takip Sistemi başlatılıyor (debug mode)')
+# Basit logging
+app.logger.setLevel(logging.INFO)
 
 # Production/Development config
 if os.environ.get('FLASK_ENV') == 'production':
@@ -786,24 +765,7 @@ def index():
     """Ana sayfa"""
     return render_template('index.html')
 
-@app.route('/test')
-def test():
-    """Test endpoint"""
-    return jsonify({
-        'status': 'ok',
-        'message': 'Uygulama çalışıyor',
-        'users': 'admin:****',
-        'database': 'initialized'
-    })
 
-@app.route('/init-db')
-def init_db_endpoint():
-    """Veritabanını manuel başlat"""
-    try:
-        init_db()
-        return jsonify({'status': 'success', 'message': 'Veritabanı başlatıldı'})
-    except Exception as e:
-        return jsonify({'status': 'error', 'message': str(e)})
 
 @app.route('/clear-logout-message', methods=['POST'])
 def clear_logout_message():
