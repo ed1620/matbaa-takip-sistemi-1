@@ -35,7 +35,7 @@ if os.environ.get('FLASK_ENV') == 'production':
     except ImportError:
         pass  # whitenoise yoksa devam et
 
-app.secret_key = os.environ.get('SECRET_KEY', 'matbaa_takip_2025_secret_key')
+app.secret_key = os.environ.get('SECRET_KEY', 'matbaa_takip_2025_secret_key_development')
 
 # CSRF Protection (temporarily disabled for testing)
 # csrf = CSRFProtect(app)
@@ -115,8 +115,8 @@ app.config['MAIL_USERNAME'] = os.environ.get('MAIL_USERNAME', 'eren1121623@gmail
 app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD', '')  # ❌ Şifre kaldırıldı!
 app.config['MAIL_DEFAULT_SENDER'] = os.environ.get('MAIL_DEFAULT_SENDER', 'eren1121623@gmail.com')
 
-# E-posta gönderme aktif/pasif (test için aktif)
-EMAIL_ENABLED = True
+# E-posta gönderme aktif/pasif
+EMAIL_ENABLED = os.environ.get('EMAIL_ENABLED', 'false').lower() == 'true'
 
 mail = Mail(app)
 
