@@ -1,6 +1,6 @@
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify, send_file
 from flask_mail import Mail, Message
-# SocketIO devre dışı - import'lar kaldırıldı
+# SocketIO devre dışı
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from flask_caching import Cache
@@ -1795,20 +1795,7 @@ def delete_all_messages():
 
 
 
-# SocketIO event handlers
-if socketio:
-    @socketio.on('connect')
-    def handle_connect(auth=None):
-        app.logger.info('Client connected')
-
-    @socketio.on('disconnect')
-    def handle_disconnect():
-        app.logger.info('Client disconnected')
-
-    @socketio.on('status_update')
-    def handle_status_update(data):
-        """Durum güncellemesi bildirimi"""
-        emit('status_updated', data, broadcast=True)
+# SocketIO event handlers - devre dışı
 
 # Error Handlers
 @app.errorhandler(404)
