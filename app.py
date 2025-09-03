@@ -198,16 +198,18 @@ def init_db():
     
     # Admin kullanıcısını güncelle veya oluştur - Environment variables ile
     admin_username = os.environ.get('ADMIN_USERNAME', 'admin')
-    admin_password = os.environ.get('ADMIN_PASSWORD', 'admin123')
+    admin_password = os.environ.get('ADMIN_PASSWORD', '')
     
     # Eski admin kullanıcılarını sil
-    cursor.execute('DELETE FROM users WHERE username IN (?, ?, ?)', ('admin', 'NARSİST', admin_username))
+    cursor.execute('DELETE FROM users WHERE username = ?', (admin_username,))
     
-    # Yeni admin kullanıcısını oluştur
-    hashed_password = hash_password(admin_password)
-    cursor.execute('INSERT INTO users (username, password) VALUES (?, ?)', (admin_username, hashed_password))
-    
-    app.logger.info(f'Admin kullanıcısı oluşturuldu: {admin_username}')
+    # Yeni admin kullanıcısını oluştur (sadece şifre varsa)
+    if admin_password:
+        hashed_password = hash_password(admin_password)
+        cursor.execute('INSERT INTO users (username, password) VALUES (?, ?)', (admin_username, hashed_password))
+        app.logger.info(f'Admin kullanıcısı oluşturuldu: {admin_username}')
+    else:
+        app.logger.warning('ADMIN_PASSWORD environment variable bulunamadı - Admin kullanıcısı oluşturulamadı')
     
     conn.commit()
     conn.close()
@@ -485,7 +487,7 @@ def send_track_code_email(book_data, customer_email=None):
                 <div style="background-color: #e3f2fd; border-radius: 6px; padding: 20px; margin: 20px 0;">
                     <h4 style="color: #1976d2; margin: 0 0 15px 0; font-size: 16px; font-weight: 600;">İletişim Bilgileri</h4>
                     <p style="color: #333; margin: 5px 0; font-size: 14px;">
-                        <strong>E-posta:</strong> siparis@mavinefes.com.tr
+                        <strong>E-posta:</strong> your-email@domain.com
                     </p>
                     <p style="color: #333; margin: 5px 0; font-size: 14px;">
                         <strong>Telefon:</strong> +90 258 266 55 44
@@ -622,7 +624,7 @@ def send_status_update_email(book_data, new_status, customer_email=None):
                 <div style="background-color: #e3f2fd; border-radius: 6px; padding: 20px; margin: 20px 0;">
                     <h4 style="color: #1976d2; margin: 0 0 15px 0; font-size: 16px; font-weight: 600;">İletişim Bilgileri</h4>
                     <p style="color: #333; margin: 5px 0; font-size: 14px;">
-                        <strong>E-posta:</strong> siparis@mavinefes.com.tr
+                        <strong>E-posta:</strong> your-email@domain.com
                     </p>
                     <p style="color: #333; margin: 5px 0; font-size: 14px;">
                         <strong>Telefon:</strong> +90 258 266 55 44
@@ -768,7 +770,7 @@ def test():
     return jsonify({
         'status': 'ok',
         'message': 'Uygulama çalışıyor',
-        'users': 'NARSİST:Mavinefes25'
+        'users': 'admin:****'
     })
 
 @app.route('/clear-logout-message', methods=['POST'])
@@ -1577,7 +1579,7 @@ def contact():
                         """
                         
                         # Admin e-posta adresine bildirim gönder
-                        admin_email = 'siparis@mavinefes.com.tr'
+                        admin_email = 'admin@domain.com'
                         send_email_notification(admin_email, subject, body)
                         
                     except Exception as e:
