@@ -35,6 +35,8 @@ def initialize_database():
         app.logger.info("✅ Veritabanı başarıyla başlatıldı")
     except Exception as e:
         app.logger.error(f"❌ Veritabanı başlatılamadı: {e}")
+        # Hata olsa bile devam et
+        pass
 
 # Production static files için whitenoise
 if os.environ.get('FLASK_ENV') == 'production':
@@ -148,8 +150,12 @@ if os.environ.get('FLASK_ENV') == 'production':
 
 def init_db():
     """Veritabanını oluştur ve tabloları hazırla"""
-    conn = sqlite3.connect(DATABASE)
-    cursor = conn.cursor()
+    try:
+        conn = sqlite3.connect(DATABASE)
+        cursor = conn.cursor()
+    except Exception as e:
+        app.logger.error(f"Veritabanı bağlantı hatası: {e}")
+        return
     
     # Books tablosu - İyileştirilmiş
     cursor.execute('''
@@ -221,9 +227,16 @@ def init_db():
     else:
         app.logger.warning('ADMIN_USERNAME veya ADMIN_PASSWORD environment variable bulunamadı - Admin kullanıcısı oluşturulamadı')
     
-    conn.commit()
-    conn.close()
-    app.logger.info('Veritabanı başarıyla başlatıldı')
+    try:
+        conn.commit()
+        conn.close()
+        app.logger.info('Veritabanı başarıyla başlatıldı')
+    except Exception as e:
+        app.logger.error(f"Veritabanı commit/close hatası: {e}")
+        try:
+            conn.close()
+        except:
+            pass
 
 def get_db_connection():
     """Veritabanı bağlantısı oluştur - SQLite/PostgreSQL desteği"""
