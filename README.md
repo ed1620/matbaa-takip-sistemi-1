@@ -91,7 +91,7 @@ REDIS_URL=redis://localhost:6379/0
 python app.py
 ```
 
-Uygulama http://localhost:8080 adresinde çalışacaktır.
+Uygulama http://localhost:8081 adresinde çalışacaktır.
 
 ## 🐳 Docker ile Çalıştırma
 
@@ -101,7 +101,7 @@ docker-compose up -d
 
 # Sadece uygulama
 docker build -t matbaa-takip .
-docker run -p 8080:8080 matbaa-takip
+docker run -p 8081:8081 matbaa-takip
 ```
 
 ## 📱 Kullanım
@@ -209,7 +209,7 @@ EMAIL_ENABLED=true
 MAIL_USERNAME=your_production_email
 MAIL_PASSWORD=your_app_password
 REDIS_URL=redis://localhost:6379/0
-PORT=8080
+PORT=8081
 ```
 
 ### Heroku Deployment
@@ -239,7 +239,7 @@ docker build -t matbaa-takip:prod .
 
 # Production run
 docker run -d \
-  -p 8080:8080 \
+  -p 8081:8081 \
   -e FLASK_ENV=production \
   -e SECRET_KEY=your_production_secret \
   -e DATABASE_URL=postgresql://... \
@@ -255,7 +255,7 @@ server {
     server_name your-domain.com;
     
     location / {
-        proxy_pass http://localhost:8080;
+        proxy_pass http://localhost:8081;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
     }

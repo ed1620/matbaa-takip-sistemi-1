@@ -1833,7 +1833,7 @@ if __name__ == '__main__':
         print("✅ Veritabanı başarıyla başlatıldı")
         
         # Production/Development port ayarı
-        port = int(os.environ.get('PORT', 8080))
+        port = int(os.environ.get('PORT', 8081))
         debug = os.environ.get('FLASK_ENV') != 'production'
         
         print(f"🚀 Uygulama başlatılıyor - Port: {port}, Debug: {debug}")
