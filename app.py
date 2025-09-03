@@ -203,11 +203,11 @@ def init_db():
         try:
             hashed_password = hash_password(admin_password)
             cursor.execute('INSERT INTO users (username, password) VALUES (?, ?)', (admin_username, hashed_password))
-            app.logger.info(f'Admin kullanıcısı oluşturuldu: {admin_username}')
+            print(f'✅ Admin kullanıcısı oluşturuldu: {admin_username}')
         except Exception as e:
-            app.logger.error(f'Admin kullanıcısı oluşturulamadı: {e}')
+            print(f'❌ Admin kullanıcısı oluşturulamadı: {e}')
     else:
-        app.logger.warning('ADMIN_USERNAME veya ADMIN_PASSWORD environment variable bulunamadı - Admin kullanıcısı oluşturulamadı')
+        print('⚠️ ADMIN_USERNAME veya ADMIN_PASSWORD environment variable bulunamadı - Admin kullanıcısı oluşturulamadı')
     
     try:
         conn.commit()
