@@ -26,7 +26,13 @@ load_dotenv()
 
 app = Flask(__name__)
 
-# Veritabanı başlatma kaldırıldı - manuel olarak /init-db endpoint'i ile yapılacak
+# Veritabanını uygulama başlarken başlat
+try:
+    init_db()
+    print("✅ Veritabanı başarıyla başlatıldı")
+except Exception as e:
+    print(f"❌ Veritabanı başlatılamadı: {e}")
+    # Hata olsa bile devam et
 
 # Production static files için whitenoise
 if os.environ.get('FLASK_ENV') == 'production':
@@ -211,9 +217,12 @@ def init_db():
     
     # Yeni admin kullanıcısını oluştur (sadece şifre varsa)
     if admin_password and admin_username:
-        hashed_password = hash_password(admin_password)
-        cursor.execute('INSERT INTO users (username, password) VALUES (?, ?)', (admin_username, hashed_password))
-        app.logger.info(f'Admin kullanıcısı oluşturuldu: {admin_username}')
+        try:
+            hashed_password = hash_password(admin_password)
+            cursor.execute('INSERT INTO users (username, password) VALUES (?, ?)', (admin_username, hashed_password))
+            app.logger.info(f'Admin kullanıcısı oluşturuldu: {admin_username}')
+        except Exception as e:
+            app.logger.error(f'Admin kullanıcısı oluşturulamadı: {e}')
     else:
         app.logger.warning('ADMIN_USERNAME veya ADMIN_PASSWORD environment variable bulunamadı - Admin kullanıcısı oluşturulamadı')
     
@@ -784,7 +793,7 @@ def test():
         'status': 'ok',
         'message': 'Uygulama çalışıyor',
         'users': 'admin:****',
-        'database': 'not_initialized'
+        'database': 'initialized'
     })
 
 @app.route('/init-db')
