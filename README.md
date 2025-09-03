@@ -27,6 +27,8 @@ pip install -r requirements.txt
 python app.py
 ```
 
+Uygulama http://localhost:8081 adresinde çalışacaktır.
+
 ### Environment Variables
 ```env
 SECRET_KEY=your_secret_key
@@ -65,43 +67,6 @@ MAIL_PASSWORD=your_app_password
 ADMIN_USERNAME=your_admin_username
 ADMIN_PASSWORD=your_admin_password
 DATABASE_PATH=matbaa_takip.db
-```
-
-## 📞 İletişim
-
-- **E-posta:** siparis@mavinefes.com.tr
-- **Telefon:** +90 258 266 55 44
-- **Adres:** Mavi Nefes Yayınları, Zümrüt, Vatan Cd No:240, 20160 Denizli Merkez/Denizli
-
-## 👨‍💻 Geliştirici
-
-**Eren Doğan** - [LinkedIn](https://www.linkedin.com/in/erendogan20/)
-
----
-
-© 2025 Mavi Nefes Matbaa. Tüm hakları saklıdır.
-DATABASE_PATH=matbaa_takip.db
-REDIS_URL=redis://localhost:6379/0
-```
-
-**⚠️ GÜVENLİK UYARISI:** `.env` dosyasını asla GitHub'a yüklemeyin!
-
-### 3. Uygulamayı Çalıştır
-```bash
-python app.py
-```
-
-Uygulama http://localhost:8081 adresinde çalışacaktır.
-
-## 🐳 Docker ile Çalıştırma
-
-```bash
-# Docker Compose ile
-docker-compose up -d
-
-# Sadece uygulama
-docker build -t matbaa-takip .
-docker run -p 8081:8081 matbaa-takip
 ```
 
 ## 📱 Kullanım
@@ -167,24 +132,10 @@ CREATE TABLE users (
 );
 ```
 
-### Status History Tablosu
-```sql
-CREATE TABLE status_history (
-    id INTEGER PRIMARY KEY,
-    book_id INTEGER NOT NULL,
-    old_status TEXT,
-    new_status TEXT NOT NULL,
-    changed_by TEXT,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (book_id) REFERENCES books (id)
-);
-```
-
 ## 🔒 Güvenlik Özellikleri
 
 - **Bcrypt** şifre hash'leme
 - **Rate limiting** (5 login/dakika, 3 contact/dakika)
-- **CSRF protection** aktif
 - **Session timeout** (2 saat)
 - **Input sanitization** ve validation
 - **Audit logging** tüm işlemler için
@@ -198,89 +149,16 @@ CREATE TABLE status_history (
 - **Sayfalama** (maksimum 100 kayıt/sayfa)
 - **Bulk operations** toplu işlemler için
 
-## 🚀 Production Deployment
+## 📞 İletişim
 
-### Environment Variables
-```env
-FLASK_ENV=production
-SECRET_KEY=very_long_random_secret_key
-DATABASE_URL=postgresql://user:pass@localhost/dbname
-EMAIL_ENABLED=true
-MAIL_USERNAME=your_production_email
-MAIL_PASSWORD=your_app_password
-REDIS_URL=redis://localhost:6379/0
-PORT=8081
-```
+- **E-posta:** siparis@mavinefes.com.tr
+- **Telefon:** +90 258 266 55 44
+- **Adres:** Mavi Nefes Yayınları, Zümrüt, Vatan Cd No:240, 20160 Denizli Merkez/Denizli
 
-### Heroku Deployment
-```bash
-# Heroku CLI kurulumu
-curl https://cli-assets.heroku.com/install.sh | sh
+## 👨‍💻 Geliştirici
 
-# Proje klasöründe
-heroku create mavinefes-matbaa
-git init
-git add .
-git commit -m "Initial commit"
-git push heroku main
+**Eren Doğan** - [LinkedIn](https://www.linkedin.com/in/erendogan20/)
 
-# Environment variables
-heroku config:set FLASK_ENV=production
-heroku config:set SECRET_KEY=your_secret_key_here
-heroku config:set DATABASE_URL=postgresql://...
-heroku config:set MAIL_USERNAME=your_email@gmail.com
-heroku config:set MAIL_PASSWORD=your_app_password
-```
+---
 
-### Docker Production
-```bash
-# Production build
-docker build -t matbaa-takip:prod .
-
-# Production run
-docker run -d \
-  -p 8081:8081 \
-  -e FLASK_ENV=production \
-  -e SECRET_KEY=your_production_secret \
-  -e DATABASE_URL=postgresql://... \
-  -e REDIS_URL=redis://... \
-  --name matbaa-takip-prod \
-  matbaa-takip:prod
-```
-
-### Nginx Configuration
-```nginx
-server {
-    listen 80;
-    server_name your-domain.com;
-    
-    location / {
-        proxy_pass http://localhost:8081;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-    }
-}
-```
-
-## 📝 Changelog
-
-### v2.0.0 (2025-01-09)
-- ✅ Bcrypt şifre güvenliği
-- ✅ Rate limiting eklendi
-- ✅ Logging sistemi
-- ✅ Cache desteği
-- ✅ Audit logging
-- ✅ Error handling
-- ✅ Docker desteği
-- ✅ Bulk operations
-- ✅ Input validation
-- ✅ Health checks
-- ✅ Backup sistemi
-
-## 📞 Destek
-
-Sorularınız için: siparis@mavinefes.com.tr
-
-## 📄 Lisans
-
-Bu proje MIT lisansı altında lisanslanmıştır. 
+© 2025 Mavi Nefes Matbaa. Tüm hakları saklıdır.
