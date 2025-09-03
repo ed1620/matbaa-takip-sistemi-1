@@ -26,17 +26,7 @@ load_dotenv()
 
 app = Flask(__name__)
 
-# Veritabanını ilk request'te başlat
-@app.before_first_request
-def initialize_database():
-    """İlk request'te veritabanını başlat"""
-    try:
-        init_db()
-        app.logger.info("✅ Veritabanı başarıyla başlatıldı")
-    except Exception as e:
-        app.logger.error(f"❌ Veritabanı başlatılamadı: {e}")
-        # Hata olsa bile devam et
-        pass
+# Veritabanı başlatma kaldırıldı - manuel olarak /init-db endpoint'i ile yapılacak
 
 # Production static files için whitenoise
 if os.environ.get('FLASK_ENV') == 'production':
@@ -793,8 +783,18 @@ def test():
     return jsonify({
         'status': 'ok',
         'message': 'Uygulama çalışıyor',
-        'users': 'admin:****'
+        'users': 'admin:****',
+        'database': 'not_initialized'
     })
+
+@app.route('/init-db')
+def init_db_endpoint():
+    """Veritabanını manuel başlat"""
+    try:
+        init_db()
+        return jsonify({'status': 'success', 'message': 'Veritabanı başlatıldı'})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)})
 
 @app.route('/clear-logout-message', methods=['POST'])
 def clear_logout_message():
