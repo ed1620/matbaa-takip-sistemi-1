@@ -1817,6 +1817,22 @@ def ratelimit_handler(e):
 
 
 
+# Render için uygulama başlatma
+def create_app():
+    """Render için uygulama oluşturma fonksiyonu"""
+    try:
+        # Veritabanını başlat
+        init_db()
+        print("✅ Veritabanı başarıyla başlatıldı")
+        return app
+    except Exception as e:
+        print(f"❌ Uygulama oluşturulamadı: {e}")
+        return app
+
+# Render'da otomatik başlatma
+if os.environ.get('RENDER'):
+    create_app()
+
 if __name__ == '__main__':
     try:
         # Güvenlik kontrolü (sadece development'ta)
