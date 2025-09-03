@@ -191,23 +191,20 @@ def init_db():
     except:
         pass  # Kolon zaten varsa hata vermez
     
-    # Admin kullanıcısını güncelle veya oluştur - Environment variables ile
+    # Admin kullanıcısını güncelle veya oluştur - Varsayılan değerlerle
     admin_username = os.environ.get('ADMIN_USERNAME', 'admin')
-    admin_password = os.environ.get('ADMIN_PASSWORD', '')
+    admin_password = os.environ.get('ADMIN_PASSWORD', 'admin123')  # Varsayılan şifre
     
     # Eski admin kullanıcılarını sil
     cursor.execute('DELETE FROM users WHERE username = ?', (admin_username,))
     
-    # Yeni admin kullanıcısını oluştur (sadece şifre varsa)
-    if admin_password and admin_username:
-        try:
-            hashed_password = hash_password(admin_password)
-            cursor.execute('INSERT INTO users (username, password) VALUES (?, ?)', (admin_username, hashed_password))
-            print(f'✅ Admin kullanıcısı oluşturuldu: {admin_username}')
-        except Exception as e:
-            print(f'❌ Admin kullanıcısı oluşturulamadı: {e}')
-    else:
-        print('⚠️ ADMIN_USERNAME veya ADMIN_PASSWORD environment variable bulunamadı - Admin kullanıcısı oluşturulamadı')
+    # Yeni admin kullanıcısını oluştur
+    try:
+        hashed_password = hash_password(admin_password)
+        cursor.execute('INSERT INTO users (username, password) VALUES (?, ?)', (admin_username, hashed_password))
+        print(f'✅ Admin kullanıcısı oluşturuldu: {admin_username}')
+    except Exception as e:
+        print(f'❌ Admin kullanıcısı oluşturulamadı: {e}')
     
     try:
         conn.commit()
@@ -221,22 +218,12 @@ def init_db():
             pass
 
 def get_db_connection():
-    """Veritabanı bağlantısı oluştur - SQLite/PostgreSQL desteği"""
+    """Veritabanı bağlantısı oluştur - SQLite kullanımı"""
     try:
-        if os.environ.get('FLASK_ENV') == 'production' and os.environ.get('DATABASE_URL'):
-            # PostgreSQL production
-            import psycopg2
-            from psycopg2.extras import RealDictCursor
-            
-            conn = psycopg2.connect(
-                os.environ.get('DATABASE_URL'),
-                cursor_factory=RealDictCursor
-            )
-        else:
-            # SQLite development
-            conn = sqlite3.connect(DATABASE, timeout=10.0)
-            conn.row_factory = sqlite3.Row  # Dict-like access
-            conn.execute('PRAGMA foreign_keys = ON')  # Foreign key desteği
+        # Her zaman SQLite kullan
+        conn = sqlite3.connect(DATABASE, timeout=10.0)
+        conn.row_factory = sqlite3.Row  # Dict-like access
+        conn.execute('PRAGMA foreign_keys = ON')  # Foreign key desteği
         
         return conn
     except Exception as e:
