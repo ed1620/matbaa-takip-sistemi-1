@@ -204,12 +204,12 @@ def init_db():
     cursor.execute('DELETE FROM users WHERE username = ?', (admin_username,))
     
     # Yeni admin kullanıcısını oluştur (sadece şifre varsa)
-    if admin_password:
+    if admin_password and admin_username:
         hashed_password = hash_password(admin_password)
         cursor.execute('INSERT INTO users (username, password) VALUES (?, ?)', (admin_username, hashed_password))
         app.logger.info(f'Admin kullanıcısı oluşturuldu: {admin_username}')
     else:
-        app.logger.warning('ADMIN_PASSWORD environment variable bulunamadı - Admin kullanıcısı oluşturulamadı')
+        app.logger.warning('ADMIN_USERNAME veya ADMIN_PASSWORD environment variable bulunamadı - Admin kullanıcısı oluşturulamadı')
     
     conn.commit()
     conn.close()
@@ -1819,8 +1819,8 @@ def ratelimit_handler(e):
 
 if __name__ == '__main__':
     try:
-        # Güvenlik kontrolü
-        if not os.environ.get('SECRET_KEY'):
+        # Güvenlik kontrolü (sadece development'ta)
+        if os.environ.get('FLASK_ENV') != 'production' and not os.environ.get('SECRET_KEY'):
             print("❌ SECRET_KEY environment variable bulunamadı!")
             print("💡 .env dosyası oluşturun veya SECRET_KEY ayarlayın")
             sys.exit(1)
