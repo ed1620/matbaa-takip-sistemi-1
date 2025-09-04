@@ -203,6 +203,15 @@ def init_db():
         hashed_password = hash_password(admin_password)
         cursor.execute('INSERT INTO users (username, password) VALUES (?, ?)', (admin_username, hashed_password))
         print(f'✅ Admin kullanıcısı oluşturuldu: {admin_username}')
+        print(f'🔍 Hash edilmiş şifre: {hashed_password[:20]}...')
+        
+        # Kontrol et
+        cursor.execute("SELECT * FROM users WHERE username = ?", (admin_username,))
+        created_user = cursor.fetchone()
+        if created_user:
+            print(f'✅ Kullanıcı veritabanında doğrulandı: {created_user[1]}')
+        else:
+            print(f'❌ Kullanıcı veritabanında bulunamadı!')
     except Exception as e:
         print(f'❌ Admin kullanıcısı oluşturulamadı: {e}')
     
@@ -872,7 +881,14 @@ def login():
                 user = cursor.fetchone()
                 
                 # Debug bilgisi
-                app.logger.info(f'Login denemesi - Kullanıcı: {username}, Bulunan: {user is not None}')
+                print(f'🔍 Login denemesi - Kullanıcı: {username}, Bulunan: {user is not None}')
+                if user:
+                    print(f'🔍 Kullanıcı bulundu - ID: {user[0]}, Username: {user[1]}')
+                    print(f'🔍 Şifre kontrolü yapılıyor...')
+                    password_match = verify_password(password, user[2])
+                    print(f'🔍 Şifre eşleşmesi: {password_match}')
+                else:
+                    print(f'❌ Kullanıcı bulunamadı: {username}')
                 
                 if user and verify_password(password, user[2]):
                     session.permanent = True
