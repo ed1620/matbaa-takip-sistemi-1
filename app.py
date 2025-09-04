@@ -28,13 +28,7 @@ except:
 
 app = Flask(__name__)
 
-# Veritabanını uygulama başlarken başlat
-try:
-    init_db()
-    print("✅ Veritabanı başarıyla başlatıldı")
-except Exception as e:
-    print(f"❌ Veritabanı başlatılamadı: {e}")
-    # Hata olsa bile devam et
+# Veritabanını uygulama başlarken başlat - fonksiyon tanımlandıktan sonra
 
 # Production static files için whitenoise
 if os.environ.get('FLASK_ENV') == 'production':
@@ -225,6 +219,14 @@ def init_db():
             conn.close()
         except:
             pass
+
+# Veritabanını başlat
+try:
+    init_db()
+    print("✅ Veritabanı başarıyla başlatıldı")
+except Exception as e:
+    print(f"❌ Veritabanı başlatılamadı: {e}")
+    # Hata olsa bile devam et
 
 def get_db_connection():
     """Veritabanı bağlantısı oluştur - SQLite kullanımı"""
