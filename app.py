@@ -580,7 +580,6 @@ def send_status_update_email(book_data, new_status, customer_email=None):
         demo_email = "demo@example.com"
         return send_email_notification(demo_email, subject, body)
 
-
 # =============================================================================
 # ANA ROUTE'LAR
 # =============================================================================
@@ -954,7 +953,6 @@ def update_book(book_id):
                 flash('Kitap başarıyla güncellendi ve durum güncellemesi e-postası gönderildi.', 'success')
             else:
                 flash('Kitap başarıyla güncellendi.', 'success')
-            
             return redirect(url_for('admin_dashboard'))
         except Exception as e:
             flash('Kitap güncellenirken bir hata oluştu.', 'error')
@@ -1132,7 +1130,6 @@ def generate_track_code_api():
             'success': False, 
             'error': 'Takip kodu oluşturulurken bir hata oluştu'
         }), 500
-
 
 # =============================================================================
 # İLETİŞİM ROUTE'LARI
