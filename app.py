@@ -1006,14 +1006,14 @@ def add_book():
                 else:
                     flash(f'✅ Kitap başarıyla eklendi! Takip kodu: {track_code}', 'success')
                 
-                # SocketIO bildirimi
-                if socketio:
-                    socketio.emit('book_added', {
-                        'book_id': book_id,
-                        'title': title,
-                        'track_code': track_code,
-                        'message': f'Yeni kitap eklendi: {title}'
-                    })
+                # SocketIO bildirimi - devre dışı
+                # if socketio:
+                #     socketio.emit('book_added', {
+                #         'book_id': book_id,
+                #         'title': title,
+                #         'track_code': track_code,
+                #         'message': f'Yeni kitap eklendi: {title}'
+                #     })
                 
                 return redirect(url_for('admin_dashboard'))
                 
@@ -1096,13 +1096,13 @@ def update_book(book_id):
             else:
                 flash('Kitap başarıyla güncellendi.', 'success')
             
-            # SocketIO bildirimi
-            if socketio:
-                socketio.emit('status_updated', {
-                    'book_id': book_id,
-                    'new_status': status,
-                    'message': f'Kitap durumu güncellendi: {status}'
-                })
+            # SocketIO bildirimi - devre dışı
+            # if socketio:
+            #     socketio.emit('status_updated', {
+            #         'book_id': book_id,
+            #         'new_status': status,
+            #         'message': f'Kitap durumu güncellendi: {status}'
+            #     })
             
             return redirect(url_for('admin_dashboard'))
         except Exception as e:
@@ -1805,4 +1805,4 @@ if __name__ == '__main__':
         
     except Exception as e:
         print(f"❌ Uygulama başlatılamadı: {e}")
-        sys.exit(1) 
+        sys.exit(1)
