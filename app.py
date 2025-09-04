@@ -5,6 +5,7 @@ from flask_limiter.util import get_remote_address
 from flask_caching import Cache
 import sqlite3
 import os
+import sys
 import logging
 from datetime import datetime, timedelta
 import bcrypt
@@ -1800,10 +1801,7 @@ if __name__ == '__main__':
         debug = os.environ.get('FLASK_ENV') != 'production'
         
         print(f"🚀 Uygulama başlatılıyor - Port: {port}, Debug: {debug}")
-        if socketio:
-            socketio.run(app, host='0.0.0.0', port=port, debug=debug)
-        else:
-            app.run(host='0.0.0.0', port=port, debug=debug)
+        app.run(host='0.0.0.0', port=port, debug=debug)
         
     except Exception as e:
         print(f"❌ Uygulama başlatılamadı: {e}")
