@@ -429,6 +429,31 @@
             }
         });
 
+        // E-posta gönderme checkbox kontrolü
+        document.getElementById('send_status_email').addEventListener('change', function() {
+            const customerEmailField = document.getElementById('customer_email');
+            
+            if (this.checked) {
+                customerEmailField.required = true;
+                customerEmailField.disabled = false;
+            } else {
+                customerEmailField.required = false;
+                customerEmailField.disabled = false; // Update sayfasında her zaman düzenlenebilir
+            }
+        });
+
+        // Form gönderimi kontrolü
+        document.querySelector('form').addEventListener('submit', function(e) {
+            const sendEmail = document.getElementById('send_status_email').checked;
+            const customerEmail = document.getElementById('customer_email').value;
+            
+            if (sendEmail && !customerEmail) {
+                e.preventDefault();
+                alert('E-posta gönderme seçiliyken müşteri e-posta adresi gereklidir.');
+                return;
+            }
+        });
+
         // Kitap silme fonksiyonu
         function deleteBook(bookId) {
             if (confirm('Bu kitabı silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.')) {

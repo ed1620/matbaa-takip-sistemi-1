@@ -320,15 +320,16 @@
                      <div class="col-md-6">
                          <div class="mb-3">
                              <label for="track_code" class="form-label">
-                                 <i class="fas fa-barcode me-2"></i> Takip Kodu <span class="required">*</span>
+                                 <i class="fas fa-barcode me-2"></i> Takip Kodu
                              </label>
                              <div class="input-group">
                                  <input type="text" class="form-control" id="track_code" name="track_code" 
-                                        placeholder="Takip kodu girin veya otomatik oluşturun" required>
+                                        placeholder="Boş bırakırsanız otomatik oluşturulur">
                                  <button type="button" class="btn btn-success" id="generateTrackCode">
                                      <i class="fas fa-magic me-1"></i> Otomatik Oluştur
                                  </button>
                              </div>
+                             <small class="text-muted">Takip kodu alanını boş bırakırsanız otomatik olarak oluşturulur</small>
                          </div>
                      </div>
                     <div class="col-md-6">
@@ -488,7 +489,7 @@
         document.getElementById('addBookForm').addEventListener('submit', function(e) {
             const sendEmail = document.getElementById('send_email').checked;
             const customerEmail = document.getElementById('customer_email').value;
-            const imageFile = document.getElementById('image').files[0];
+            const trackCode = document.getElementById('track_code').value;
             
             if (sendEmail && !customerEmail) {
                 e.preventDefault();
@@ -496,14 +497,43 @@
                 return;
             }
             
-            // Görsel yükleme kontrolü
-            if (imageFile) {
-                const maxSize = 5 * 1024 * 1024; // 5MB
-                if (imageFile.size > maxSize) {
-                    e.preventDefault();
-                    showAlert('Görsel dosyası 5MB\'dan büyük olamaz.', 'warning');
-                    return;
-                }
+            // Takip kodu boşsa otomatik oluştur
+            if (!trackCode.trim()) {
+                e.preventDefault();
+                
+                const button = document.getElementById('generateTrackCode');
+                const originalText = button.innerHTML;
+                
+                // Loading durumu
+                button.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Oluşturuluyor...';
+                button.disabled = true;
+                
+                fetch('/admin/generate-track-code')
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.success) {
+                            document.getElementById('track_code').value = data.track_code;
+                            showAlert('Takip kodu otomatik oluşturuldu: ' + data.track_code, 'success');
+                            
+                            // Formu tekrar gönder
+                            setTimeout(() => {
+                                document.getElementById('addBookForm').submit();
+                            }, 1000);
+                        } else {
+                            showAlert('Takip kodu oluşturulurken hata oluştu: ' + data.error, 'danger');
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error:', error);
+                        showAlert('Takip kodu oluşturulurken hata oluştu.', 'danger');
+                    })
+                    .finally(() => {
+                        // Button'u eski haline getir
+                        button.innerHTML = originalText;
+                        button.disabled = false;
+                    });
+                
+                return;
             }
             
             // Loading spinner göster
