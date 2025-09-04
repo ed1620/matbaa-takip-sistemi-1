@@ -139,6 +139,8 @@ def init_db():
     admin_username = os.environ.get('ADMIN_USERNAME', 'admin')
     admin_password = os.environ.get('ADMIN_PASSWORD', 'admin123')  # Varsayılan şifre
     
+    print(f'🔍 Admin oluşturuluyor - Username: {admin_username}, Password: {admin_password}')
+    
     # Eski admin kullanıcılarını sil
     cursor.execute('DELETE FROM users WHERE username = ?', (admin_username,))
     
