@@ -197,7 +197,7 @@ def send_email_notification(to_email: str, subject: str, body: str):
         mail.send(msg)
         return True
     except Exception as e:
-        app.logger.error(f"Email gönderme hatası: {e}")
+        app.logger.error(f"E-posta gönderme hatası: {e}")
         return False
 
 def login_required(f):
@@ -403,157 +403,511 @@ def admin_books_completed():
 @login_required
 def add_book():
     if request.method == 'POST':
-        title = sanitize_input(request.form.get('title'))
-        author_name = sanitize_input(request.form.get('author_name'))
-        order_quantity = (request.form.get('order_quantity') or '').strip()
-        size = sanitize_input(request.form.get('size'))
-        status = sanitize_input(request.form.get('status')) or 'Sipariş Alındı'
-        track_code = sanitize_input(request.form.get('track_code')) or get_unique_track_code()
-        customer_email = sanitize_input(request.form.get('customer_email'))
-        send_email = request.form.get('send_email') == 'on'
-
-        # basit validasyon
-        errors = []
-        if not title: errors.append('Başlık zorunlu')
-        if not author_name: errors.append('Yazar zorunlu')
-        if not order_quantity.isdigit(): errors.append('Adet sayısal olmalı')
-        if not size: errors.append('Ebat zorunlu')
-        if errors:
-            for e in errors: flash(e, 'error')
-            return render_template('add_book.html', preset={'title': title, 'author_name': author_name,
-                                                            'order_quantity': order_quantity, 'size': size,
-                                                            'status': status, 'track_code': track_code,
-                                                            'customer_email': customer_email})
-        conn = get_db_connection()
-        if not conn:
-            flash('DB bağlantı hatası', 'error')
-            return render_template('add_book.html')
-
-        cur = conn.cursor()
         try:
-            cur.execute("""INSERT INTO books (title, author_name, order_quantity, size, status, track_code, customer_email)
-                           VALUES (?, ?, ?, ?, ?, ?, ?)""",
-                        (title, author_name, int(order_quantity), size, status, track_code, customer_email or None))
-            conn.commit()
-            flash('Kayıt eklendi', 'success')
-
+            # Form verilerini al ve temizle
+            title = sanitize_input(request.form.get('title', ''))
+            author_name = sanitize_input(request.form.get('author_name', ''))
+            track_code = sanitize_input(request.form.get('track_code', ''))
+            order_quantity = request.form.get('order_quantity')
+            size = sanitize_input(request.form.get('size', ''))
+            status = request.form.get('status', 'Sipariş Alındı')
+            customer_email = sanitize_input(request.form.get('customer_email', ''))
+            send_email = request.form.get('send_email') == 'on'
+            
+            # Gelişmiş validasyon
+            validation_errors = validate_book_data(title, author_name, order_quantity, size)
+            if validation_errors:
+                for error in validation_errors:
+                    flash(error, 'error')
+                return render_template('add_book.html')
+            
+            # E-posta validasyonu
             if send_email and customer_email:
-                try:
-                    send_email_notification(customer_email,
-                                            subject='Siparişiniz oluşturuldu',
-                                            body=f"{title} ({track_code}) siparişiniz alınmıştır.")
-                except Exception:
-                    pass
+                if not validate_email(customer_email):
+                    flash('Geçerli bir e-posta adresi giriniz.', 'error')
+                    return render_template('add_book.html')
+            
+            # Takip kodu oluşturma
+            if not track_code:
+                track_code = get_unique_track_code()
+                app.logger.info(f"Otomatik takip kodu oluşturuldu: {track_code}")
+            else:
+                # Manuel girilen takip kodunun benzersiz olup olmadığını kontrol et
+                if not is_track_code_unique(track_code):
+                    flash('Bu takip kodu zaten kullanılıyor. Lütfen farklı bir kod girin.', 'error')
+                    return render_template('add_book.html')
+            
 
-            return redirect(url_for('admin_books_all'))
-        except sqlite3.IntegrityError:
-            flash('Takip kodu zaten mevcut, yenisini deneyin', 'error')
+            
+            # Veritabanına kaydet
+            conn = get_db_connection()
+            if not conn:
+                flash('Veritabanı bağlantısı kurulamadı.', 'error')
+                return render_template('add_book.html')
+            
+            try:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    INSERT INTO books (title, author_name, order_quantity, size, status, track_code, customer_email)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                """, (title, author_name, order_quantity, size, status, track_code, customer_email))
+                conn.commit()
+                
+                book_id = cursor.lastrowid
+                app.logger.info(f"Kitap başarıyla kaydedildi. ID: {book_id}, Takip Kodu: {track_code}")
+                
+
+                
+                # Cache'i temizle
+                cache.clear()
+                
+                # E-posta gönderme işlemi
+                email_sent = False
+                if send_email and customer_email:
+                    book_data = {
+                        'title': title,
+                        'author_name': author_name,
+                        'track_code': track_code,
+                        'order_quantity': order_quantity,
+                        'size': size,
+                        'status': status
+                    }
+                    
+                    app.logger.info(f"E-posta gönderiliyor: {customer_email}")
+                    email_sent = send_track_code_email(book_data, customer_email)
+                    
+                    if email_sent:
+                        app.logger.info("E-posta başarıyla gönderildi")
+                        flash(f'✅ Kitap başarıyla eklendi! Takip kodu: {track_code} - E-posta gönderildi.', 'success')
+                    else:
+                        app.logger.warning("E-posta gönderilemedi")
+                        flash(f'⚠️ Kitap başarıyla eklendi (Takip kodu: {track_code}) ancak e-posta gönderilemedi.', 'warning')
+                else:
+                    flash(f'✅ Kitap başarıyla eklendi! Takip kodu: {track_code}', 'success')
+                
+                # SocketIO bildirimi
+                if socketio:
+                    socketio.emit('book_added', {
+                        'book_id': book_id,
+                        'title': title,
+                        'track_code': track_code,
+                        'message': f'Yeni kitap eklendi: {title}'
+                    })
+                
+                return redirect(url_for('admin_dashboard'))
+                
+            except Exception as e:
+                print(f"Veritabanı hatası: {e}")
+                flash('Kitap eklenirken bir hata oluştu.', 'error')
+                return render_template('add_book.html')
+            finally:
+                conn.close()
+                
         except Exception as e:
-            app.logger.error(f'Insert hatası: {e}')
-            flash('Kayıt eklenirken hata', 'error')
-        finally:
-            conn.close()
-
-    # GET
-    return render_template('add_book.html', suggested_code=get_unique_track_code())
-
-# =========================
-# Admin — Excel Rapor
-# =========================
-from openpyxl import Workbook
-from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
-
-def generate_excel_report(books, title="Matbaa Raporu"):
-    wb = Workbook()
-    ws = wb.active
-    ws.title = "Rapor"
-
-    # Başlık
-    ws.merge_cells('A1:G1')
-    ws['A1'] = title
-    ws['A1'].font = Font(size=14, bold=True)
-    ws['A1'].alignment = Alignment(horizontal='center')
-
-    # Head
-    headers = ['Başlık', 'Yazar', 'Adet', 'Ebat', 'Durum', 'Takip Kodu', 'E-posta']
-    for i, h in enumerate(headers, 1):
-        c = ws.cell(row=3, column=i, value=h)
-        c.font = Font(bold=True)
-        c.fill = PatternFill(start_color='DDDDDD', end_color='DDDDDD', fill_type='solid')
-        c.alignment = Alignment(horizontal='center')
-
-    thin = Border(left=Side(style='thin'), right=Side(style='thin'),
-                  top=Side(style='thin'), bottom=Side(style='thin'))
-
-    if books:
-        for r, b in enumerate(books, 4):
-            ws.cell(r, 1, b.get('title', '')).border = thin
-            ws.cell(r, 2, b.get('author_name', '')).border = thin
-            ws.cell(r, 3, b.get('order_quantity', '')).border = thin
-            ws.cell(r, 4, b.get('size', '')).border = thin
-            ws.cell(r, 5, b.get('status', '')).border = thin
-            ws.cell(r, 6, b.get('track_code', '')).border = thin
-            ws.cell(r, 7, b.get('customer_email', '')).border = thin
-    else:
-        ws.merge_cells('A4:G4')
-        ws['A4'] = "Veri bulunamadı"
-        ws['A4'].alignment = Alignment(horizontal='center')
-
-    widths = [30, 20, 10, 15, 15, 18, 30]
-    for i, w in enumerate(widths, 1):
-        ws.column_dimensions[chr(64+i)].width = w
-
-    buf = BytesIO()
-    wb.save(buf)
-    buf.seek(0)
-    return buf
+            app.logger.error(f"Genel hata: {e}")
+            flash('Beklenmeyen bir hata oluştu.', 'error')
+            return render_template('add_book.html')
+    
+    return render_template('add_book.html')
 
 @app.route('/admin/update/<int:book_id>', methods=['GET', 'POST'])
 @login_required
 def update_book(book_id):
+    """Kitap güncelleme sayfası"""
     if request.method == 'POST':
-        title = sanitize_input(request.form.get('title', ''))
-        author_name = sanitize_input(request.form.get('author_name', ''))
+        title = request.form.get('title')
+        author_name = request.form.get('author_name')
         order_quantity = request.form.get('order_quantity')
-        size = sanitize_input(request.form.get('size', ''))
-        status = request.form.get('status', 'Hazırlanıyor')
-        customer_email = sanitize_input(request.form.get('customer_email', ''))
+        size = request.form.get('size')
+        status = request.form.get('status')
+        customer_email = request.form.get('customer_email')
+        send_status_email = request.form.get('send_status_email') == 'on'
+        
+
         
         conn = get_db_connection()
-        if conn:
-            cur = conn.cursor()
-            cur.execute("""
-                UPDATE books SET title=?, author_name=?, order_quantity=?, size=?, status=?, customer_email=?, updated_at=CURRENT_TIMESTAMP
-                WHERE id=?
-            """, (title, author_name, order_quantity, size, status, customer_email, book_id))
-            conn.commit()
-            conn.close()
-            flash('Kitap başarıyla güncellendi.', 'success')
+        if not conn:
+            flash('Veritabanı bağlantısı kurulamadı.', 'error')
             return redirect(url_for('admin_dashboard'))
+        
+        try:
+            cursor = conn.cursor()
+            
+            # Önce mevcut kitap bilgilerini al
+            cursor.execute("SELECT * FROM books WHERE id = ?", (book_id,))
+            book = cursor.fetchone()
+            
+            if not book:
+                flash('Kitap bulunamadı.', 'error')
+                return redirect(url_for('admin_dashboard'))
+            
+            old_status = book[5]  # Eski durum
+            old_customer_email = book[7]  # Eski e-posta
+            
+            # Güncelleme işlemi - İyileştirilmiş
+            cursor.execute("""
+                UPDATE books SET title=?, author_name=?, order_quantity=?, size=?, status=?, customer_email=?, updated_at=CURRENT_TIMESTAMP
+                    WHERE id=?
+            """, (title, author_name, order_quantity, size, status, customer_email, book_id))
+            
+            conn.commit()
+            
+
+            
+            # Cache'i temizle
+            cache.clear()
+            
+            # Durum değişikliği kontrolü ve e-posta gönderme
+            if send_status_email and customer_email and status != old_status:
+                book_data = {
+                    'title': title,
+                    'author_name': author_name,
+                    'track_code': book[6],  # track_code sütunu
+                    'order_quantity': order_quantity,
+                    'size': size
+                }
+                
+                email_sent = send_status_update_email(book_data, status, customer_email)
+                if email_sent:
+                    flash('Kitap başarıyla güncellendi ve durum güncellemesi e-postası gönderildi.', 'success')
+                else:
+                    flash('Kitap başarıyla güncellendi ancak e-posta gönderilemedi.', 'warning')
+            else:
+                flash('Kitap başarıyla güncellendi.', 'success')
+            
+            # SocketIO bildirimi
+            if socketio:
+                socketio.emit('status_updated', {
+                    'book_id': book_id,
+                    'new_status': status,
+                    'message': f'Kitap durumu güncellendi: {status}'
+                })
+            
+            return redirect(url_for('admin_dashboard'))
+        except Exception as e:
+            flash('Kitap güncellenirken bir hata oluştu.', 'error')
+            app.logger.error(f"Güncelleme hatası: {e}")
+        finally:
+            conn.close()
     
-    # GET request - kitap bilgilerini getir
+    # GET isteği - Kitap bilgilerini getir
     conn = get_db_connection()
-    if conn:
-        cur = conn.cursor()
-        cur.execute("SELECT * FROM books WHERE id = ?", (book_id,))
-        book = cur.fetchone()
-        conn.close()
+    if not conn:
+        flash('Veritabanı bağlantısı kurulamadı.', 'error')
+        return redirect(url_for('admin_dashboard'))
+    
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM books WHERE id = ?", (book_id,))
+        book = cursor.fetchone()
+        
         if book:
-            return render_template('update_book.html', book=dict(book))
-    flash('Kitap bulunamadı.', 'error')
-    return redirect(url_for('admin_dashboard'))
+            # Veritabanı sütun sırası: id, title, author_name, order_quantity, size, status, track_code, customer_email, created_at, updated_at
+            book_data = {
+                'id': book[0],
+                'title': book[1],
+                'author_name': book[2],
+                'order_quantity': book[3],
+                'size': book[4],
+                'status': book[5],
+                'track_code': book[6],
+                'customer_email': book[7],
+                'created_at': book[8],
+                'updated_at': book[9] if len(book) > 9 else None
+            }
+            app.logger.info(f"Kitap verisi yüklendi - ID: {book[0]}")
+            return render_template('update_book.html', book=book_data)
+        else:
+            flash('Kitap bulunamadı.', 'error')
+            return redirect(url_for('admin_dashboard'))
+    except Exception as e:
+        flash('Kitap bilgileri yüklenirken bir hata oluştu.', 'error')
+        app.logger.error(f"Veri yükleme hatası: {e}")
+        return redirect(url_for('admin_dashboard'))
+    finally:
+        conn.close()
 
 @app.route('/admin/delete/<int:book_id>', methods=['DELETE'])
 @login_required
 def delete_book(book_id):
+    """Kitap silme endpoint'i"""
     conn = get_db_connection()
     if conn:
-        cur = conn.cursor()
-        cur.execute("DELETE FROM books WHERE id = ?", (book_id,))
-        conn.commit()
-        conn.close()
-        return jsonify({'success': True, 'message': 'Kitap başarıyla silindi'})
-    return jsonify({'success': False, 'error': 'Veritabanı bağlantı hatası'})
+        try:
+            cursor = conn.cursor()
+            
+            # Önce kitabın var olup olmadığını kontrol et
+            cursor.execute("SELECT * FROM books WHERE id = ?", (book_id,))
+            book = cursor.fetchone()
+            
+            if not book:
+                return jsonify({'success': False, 'error': 'Kitap bulunamadı'})
+            
+            # Görsel dosyası sütunu yok, bu kısmı kaldırıyoruz
+            
+            # Kitabı veritabanından sil
+            cursor.execute("DELETE FROM books WHERE id = ?", (book_id,))
+            conn.commit()
+            
+            return jsonify({'success': True, 'message': 'Kitap başarıyla silindi'})
+            
+        except Exception as e:
+            app.logger.error(f"Kitap silme hatası: {e}")
+            return jsonify({'success': False, 'error': str(e)})
+        finally:
+            conn.close()
+    else:
+        return jsonify({'success': False, 'error': 'Veritabanı bağlantısı kurulamadı'})
+
+@app.route('/logout')
+def logout():
+    """Oturumu kapat - İyileştirilmiş"""
+    username = session.get('admin_username', 'Unknown')
+    user_id = session.get('admin_user_id')
+    
+    app.logger.info(f'Kullanıcı çıkış yaptı - Kullanıcı: {username}, IP: {request.remote_addr}')
+    session.clear()
+    
+    # Flash mesajını session'a kaydet ve index'e yönlendir
+    session['logout_message'] = 'Başarıyla çıkış yaptınız.'
+    return redirect(url_for('index'))
+
+@app.route('/admin/books/all')
+@login_required
+def get_all_books():
+    """Tüm kitapları JSON formatında döndür - Sayfalama ile"""
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 20, type=int)
+    
+    # Güvenlik: per_page limitini kontrol et
+    per_page = min(per_page, 100)
+    
+    conn = get_db_connection()
+    if conn:
+        try:
+            cursor = conn.cursor()
+            
+            # Toplam kayıt sayısı
+            cursor.execute("SELECT COUNT(*) FROM books")
+            total = cursor.fetchone()[0]
+            
+            # Sayfalama hesaplamaları
+            offset = (page - 1) * per_page
+            
+            cursor.execute("""
+                SELECT id, title, author_name, track_code, order_quantity, size, status, customer_email, created_at
+                FROM books 
+                ORDER BY created_at DESC
+                LIMIT ? OFFSET ?
+            """, (per_page, offset))
+            
+            books = []
+            for row in cursor.fetchall():
+                books.append({
+                    'id': row[0],
+                    'title': row[1],
+                    'author_name': row[2],
+                    'track_code': row[3],
+                    'order_quantity': row[4],
+                    'size': row[5],
+                    'status': row[6],
+                    'customer_email': row[7],
+                    'created_at': row[8].isoformat() if row[8] else None
+                })
+            
+            return jsonify({
+                'books': books,
+                'pagination': {
+                    'page': page,
+                    'per_page': per_page,
+                    'total': total,
+                    'pages': (total + per_page - 1) // per_page
+                }
+            })
+        except Exception as e:
+            app.logger.error(f"Veritabanı hatası: {e}")
+            return jsonify({'error': 'Veritabanı hatası'}), 500
+        finally:
+            conn.close()
+    return jsonify({'error': 'Veritabanı bağlantı hatası'}), 500
+
+@app.route('/admin/books/active')
+@login_required
+def get_active_books():
+    """Aktif siparişleri JSON formatında döndür"""
+    conn = get_db_connection()
+    if conn:
+        try:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT id, title, author_name, track_code, order_quantity, size, status, customer_email, created_at
+                FROM books 
+                WHERE status != 'Hazır'
+                ORDER BY created_at DESC
+            """)
+            books = []
+            for row in cursor.fetchall():
+                books.append({
+                    'id': row[0],
+                    'title': row[1],
+                    'author_name': row[2],
+                    'track_code': row[3],
+                    'order_quantity': row[4],
+                    'size': row[5],
+                    'status': row[6],
+                    'customer_email': row[7],
+                    'created_at': row[8].isoformat() if row[8] else None
+                })
+            return jsonify({'books': books})
+        except Exception as e:
+            app.logger.error(f"Veritabanı hatası: {e}")
+            return jsonify({'error': 'Veritabanı hatası'}), 500
+        finally:
+            conn.close()
+    return jsonify({'error': 'Veritabanı bağlantı hatası'}), 500
+
+@app.route('/admin/books/completed')
+@login_required
+def get_completed_books():
+    """Tamamlanan siparişleri JSON formatında döndür"""
+    conn = get_db_connection()
+    if conn:
+        try:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT id, title, author_name, track_code, order_quantity, size, status, customer_email, created_at
+                FROM books 
+                WHERE status = 'Hazır'
+                ORDER BY created_at DESC
+            """)
+            books = []
+            for row in cursor.fetchall():
+                books.append({
+                    'id': row[0],
+                    'title': row[1],
+                    'author_name': row[2],
+                    'track_code': row[3],
+                    'order_quantity': row[4],
+                    'size': row[5],
+                    'status': row[6],
+                    'customer_email': row[7],
+                    'created_at': row[8].isoformat() if row[8] else None
+                })
+            return jsonify({'books': books})
+        except Exception as e:
+            app.logger.error(f"Veritabanı hatası: {e}")
+            return jsonify({'error': 'Veritabanı hatası'}), 500
+        finally:
+            conn.close()
+    return jsonify({'error': 'Veritabanı bağlantı hatası'}), 500
+
+@app.route('/admin/books/all-page')
+@login_required
+def all_books_page():
+    """Tüm kitaplar sayfası"""
+    conn = get_db_connection()
+    if conn:
+        try:
+            cursor = conn.cursor()
+            cursor.execute("SELECT id, title, author_name, order_quantity, size, status, track_code, customer_email FROM books ORDER BY created_at DESC")
+            books = []
+            for row in cursor.fetchall():
+                books.append({
+                    'id': row[0],
+                    'title': row[1],
+                    'author_name': row[2],
+                    'order_quantity': row[3],
+                    'size': row[4],
+                    'status': row[5],
+                    'track_code': row[6],
+                    'customer_email': row[7]
+                })
+            return render_template('books_list.html', books=books, title="Tüm Kitaplar", type="all")
+        except Exception as e:
+            flash('Veriler yüklenirken bir hata oluştu.', 'error')
+        finally:
+            conn.close()
+    return redirect(url_for('admin_dashboard'))
+
+@app.route('/admin/books/active-page')
+@login_required
+def active_books_page():
+    """Aktif siparişler sayfası"""
+    conn = get_db_connection()
+    if conn:
+        try:
+            cursor = conn.cursor()
+            cursor.execute("SELECT id, title, author_name, order_quantity, size, status, track_code, customer_email FROM books WHERE status != 'Hazır' ORDER BY created_at DESC")
+            books = []
+            for row in cursor.fetchall():
+                app.logger.debug(f"Veritabanı sütun sırası: {list(row)}")
+                books.append({
+                    'id': row[0],
+                    'title': row[1],
+                    'author_name': row[2],
+                    'order_quantity': row[3],
+                    'size': row[4],
+                    'status': row[5],
+                    'track_code': row[6],
+                    'customer_email': row[7]
+                })
+            return render_template('books_list.html', books=books, title="Aktif Siparişler", type="active")
+        except Exception as e:
+            flash('Veriler yüklenirken bir hata oluştu.', 'error')
+        finally:
+            conn.close()
+    return redirect(url_for('admin_dashboard'))
+
+@app.route('/admin/books/completed-page')
+@login_required
+def completed_books_page():
+    """Tamamlanan siparişler sayfası"""
+    conn = get_db_connection()
+    if conn:
+        try:
+            cursor = conn.cursor()
+            cursor.execute("SELECT id, title, author_name, order_quantity, size, status, track_code, customer_email FROM books WHERE status = 'Hazır' ORDER BY created_at DESC")
+            books = []
+            for row in cursor.fetchall():
+                books.append({
+                    'id': row[0],
+                    'title': row[1],
+                    'author_name': row[2],
+                    'order_quantity': row[3],
+                    'size': row[4],
+                    'status': row[5],
+                    'track_code': row[6],
+                    'customer_email': row[7]
+                })
+            return render_template('books_list.html', books=books, title="Tamamlanan Siparişler", type="completed")
+        except Exception as e:
+            flash('Veriler yüklenirken bir hata oluştu.', 'error')
+        finally:
+            conn.close()
+    return redirect(url_for('admin_dashboard'))
+
+@app.route('/admin/generate-track-code')
+@login_required
+def generate_track_code_api():
+    """API endpoint for generating unique track code"""
+    try:
+        # Rate limiting kontrolü (opsiyonel)
+        track_code = get_unique_track_code()
+        
+        # Log kaydı
+        app.logger.info(f"Takip kodu oluşturuldu: {track_code} - Kullanıcı: {session.get('admin_username', 'Unknown')}")
+        
+        return jsonify({
+            'success': True, 
+            'track_code': track_code,
+            'message': 'Takip kodu başarıyla oluşturuldu'
+        })
+    except Exception as e:
+        app.logger.error(f"Takip kodu oluşturma hatası: {e}")
+        return jsonify({
+            'success': False, 
+            'error': 'Takip kodu oluşturulurken bir hata oluştu'
+        }), 500
 
 @app.route('/admin/export-excel/<report_type>')
 @login_required
