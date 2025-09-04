@@ -419,7 +419,7 @@ def send_track_code_email(book_data, customer_email=None):
                 <div style="background-color: #e3f2fd; border-radius: 6px; padding: 20px; margin: 20px 0;">
                     <h4 style="color: #1976d2; margin: 0 0 15px 0; font-size: 16px; font-weight: 600;">İletişim Bilgileri</h4>
                     <p style="color: #333; margin: 5px 0; font-size: 14px;">
-                        <strong>E-posta:</strong> your-email@domain.com
+                        <strong>E-posta:</strong> siparis@mavinefes.com.tr
                     </p>
                     <p style="color: #333; margin: 5px 0; font-size: 14px;">
                         <strong>Telefon:</strong> +90 258 266 55 44
@@ -547,7 +547,7 @@ def send_status_update_email(book_data, new_status, customer_email=None):
                 <div style="background-color: #e3f2fd; border-radius: 6px; padding: 20px; margin: 20px 0;">
                     <h4 style="color: #1976d2; margin: 0 0 15px 0; font-size: 16px; font-weight: 600;">İletişim Bilgileri</h4>
                     <p style="color: #333; margin: 5px 0; font-size: 14px;">
-                        <strong>E-posta:</strong> your-email@domain.com
+                        <strong>E-posta:</strong> siparis@mavinefes.com.tr
                     </p>
                     <p style="color: #333; margin: 5px 0; font-size: 14px;">
                         <strong>Telefon:</strong> +90 258 266 55 44
