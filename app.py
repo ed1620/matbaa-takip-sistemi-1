@@ -1,533 +1,1113 @@
-# app.py
 # -*- coding: utf-8 -*-
 """
-Matbaa Takip - Tek dosyalık Flask uygulaması
-- .env'den ayarları okur
-- SQLite veritabanı kullanır
-- Admin hesabını .env'den oluşturur/günceller
-- Basit oturum açma/kapama ve örnek iş (job) CRUD içerir
-- E-posta bildirimi (opsiyonel) için Flask-Mail kullanır
+Mavi Nefes Matbaa Takip Sistemi
+Flask tabanlı kitap takip ve yönetim sistemi
 """
 
-import os
-import sqlite3
-from datetime import datetime
-from functools import wraps
-
-from flask import (
-    Flask, request, redirect, url_for, session,
-    flash, abort, render_template_string, jsonify
-)
-from flask_bcrypt import Bcrypt
+from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify, send_file
 from flask_mail import Mail, Message
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
+from flask_caching import Cache
+import sqlite3
+import os
+import sys
+import logging
+from datetime import datetime, timedelta
+import bcrypt
+import random
+import string
+import uuid
+from io import BytesIO
 from dotenv import load_dotenv
+import html
+import re
 
-# ---------------------------------------------------------------------
-# .env yükle
-# ---------------------------------------------------------------------
+# .env dosyasını yükle
 load_dotenv()
 
-# Ortam değişkenleri
-SECRET_KEY = os.getenv("SECRET_KEY", "change_this_dev_key")
-DATABASE_PATH = os.getenv("DATABASE_PATH", os.path.join(os.path.dirname(__file__), "matbaa_takip.db"))
-
-EMAIL_ENABLED = str(os.getenv("EMAIL_ENABLED", "false")).strip().lower() == "true"
-MAIL_SERVER = os.getenv("MAIL_SERVER", "smtp.gmail.com")
-MAIL_PORT = int(os.getenv("MAIL_PORT", "587"))
-MAIL_USE_TLS = str(os.getenv("MAIL_USE_TLS", "true")).strip().lower() == "true"
-MAIL_USERNAME = os.getenv("MAIL_USERNAME", "")
-MAIL_PASSWORD = os.getenv("MAIL_PASSWORD", "")
-MAIL_DEFAULT_SENDER = os.getenv("MAIL_DEFAULT_SENDER", MAIL_USERNAME or "no-reply@example.com")
-
-ADMIN_USERNAME = os.getenv("ADMIN_USERNAME", "admin")
-ADMIN_PASSWORD = os.getenv("ADMIN_PASSWORD", "admin123")
-FLASK_ENV = os.getenv("FLASK_ENV", "production")
-
-# ---------------------------------------------------------------------
-# Flask uygulaması
-# ---------------------------------------------------------------------
+# Flask uygulaması oluştur
 app = Flask(__name__)
-app.secret_key = SECRET_KEY
 
-# Bcrypt
-bcrypt = Bcrypt(app)
+# Production static files için whitenoise
+if os.environ.get('FLASK_ENV') == 'production':
+    try:
+        from whitenoise import WhiteNoise
+        app.wsgi_app = WhiteNoise(app.wsgi_app, root='static/')
+        app.wsgi_app.add_files('static/', prefix='static/')
+    except ImportError:
+        pass
 
-# Mail
-app.config.update(
-    MAIL_SERVER=MAIL_SERVER,
-    MAIL_PORT=MAIL_PORT,
-    MAIL_USE_TLS=MAIL_USE_TLS,
-    MAIL_USERNAME=MAIL_USERNAME,
-    MAIL_PASSWORD=MAIL_PASSWORD,
-    MAIL_DEFAULT_SENDER=MAIL_DEFAULT_SENDER,
+# Konfigürasyon
+app.secret_key = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
+app.permanent_session_lifetime = timedelta(hours=2)
+
+# Rate Limiting
+limiter = Limiter(
+    get_remote_address,
+    app=app,
+    default_limits=["200 per day", "50 per hour"],
+    storage_uri="memory://"
 )
+
+# Cache Configuration
+cache = Cache(app, config={'CACHE_TYPE': 'simple', 'CACHE_DEFAULT_TIMEOUT': 300})
+
+# Logging
+app.logger.setLevel(logging.INFO)
+
+# Veritabanı
+DATABASE = os.environ.get('DATABASE_PATH', 'matbaa_takip.db')
+
+# E-posta ayarları
+app.config['MAIL_SERVER'] = os.environ.get('MAIL_SERVER')
+app.config['MAIL_PORT'] = int(os.environ.get('MAIL_PORT', 587))
+app.config['MAIL_USE_TLS'] = os.environ.get('MAIL_USE_TLS', 'true').lower() == 'true'
+app.config['MAIL_USERNAME'] = os.environ.get('MAIL_USERNAME')
+app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD')
+app.config['MAIL_DEFAULT_SENDER'] = os.environ.get('MAIL_DEFAULT_SENDER')
+EMAIL_ENABLED = os.environ.get('EMAIL_ENABLED', 'false').lower() == 'true'
+
 mail = Mail(app)
 
-# ---------------------------------------------------------------------
-# DB yardımcıları
-# ---------------------------------------------------------------------
-def get_db():
-    # UTF-8 ve unicode kullanıcı adları için text_factory
-    conn = sqlite3.connect(DATABASE_PATH, detect_types=sqlite3.PARSE_DECLTYPES)
-    conn.row_factory = sqlite3.Row
-    conn.text_factory = lambda x: x.decode("utf-8", errors="ignore") if isinstance(x, (bytes, bytearray)) else x
-    return conn
+# Security headers - Production için
+if os.environ.get('FLASK_ENV') == 'production':
+    @app.after_request
+    def add_security_headers(response):
+        response.headers['X-Content-Type-Options'] = 'nosniff'
+        response.headers['X-Frame-Options'] = 'DENY'
+        response.headers['X-XSS-Protection'] = '1; mode=block'
+        response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
+        return response
+
+
+# =============================================================================
+# VERİTABANI FONKSİYONLARI
+# =============================================================================
 
 def init_db():
-    """Tabloları oluştur ve admin hesabını .env'den set et."""
-    os.makedirs(os.path.dirname(DATABASE_PATH), exist_ok=True)
-    conn = get_db()
-    cur = conn.cursor()
-
-    # users tablosu
-    cur.execute("""
-    CREATE TABLE IF NOT EXISTS users (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        username TEXT UNIQUE NOT NULL,
-        password_hash TEXT NOT NULL,
-        is_admin INTEGER NOT NULL DEFAULT 0,
-        email TEXT
-    )
-    """)
-
-    # jobs tablosu (örnek iş kayıtları)
-    cur.execute("""
-    CREATE TABLE IF NOT EXISTS jobs (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        title TEXT NOT NULL,
-        description TEXT,
-        status TEXT NOT NULL DEFAULT 'pending',
-        created_at TEXT NOT NULL
-    )
-    """)
-
-    # Admin kullanıcıyı .env'e göre garanti altına al
-    # 1) Aynı kullanıcı adı varsa sil (eski/plain kayıt kalmasın)
-    cur.execute("DELETE FROM users WHERE username = ?", (ADMIN_USERNAME,))
-    # 2) Hash oluştur ve ekle
-    admin_hash = bcrypt.generate_password_hash(ADMIN_PASSWORD).decode("utf-8")
-    cur.execute(
-        "INSERT INTO users (username, password_hash, is_admin, email) VALUES (?, ?, ?, ?)",
-        (ADMIN_USERNAME, admin_hash, 1, None)
-    )
-
-    conn.commit()
-    conn.close()
-
-# Uygulama start-up'ta DB init
-init_db()
-
-# ---------------------------------------------------------------------
-# Yardımcılar
-# ---------------------------------------------------------------------
-def login_required(view):
-    @wraps(view)
-    def wrapped(*args, **kwargs):
-        if not session.get("user_id"):
-            return redirect(url_for("login", next=request.path))
-        return view(*args, **kwargs)
-    return wrapped
-
-def admin_required(view):
-    @wraps(view)
-    def wrapped(*args, **kwargs):
-        if not session.get("user_id") or not session.get("is_admin"):
-            abort(403)
-        return view(*args, **kwargs)
-    return wrapped
-
-def send_email_notification(subject, recipients, body):
-    """E-posta gönder. EMAIL_ENABLED false ise hiçbir şey yapma."""
-    if not EMAIL_ENABLED:
-        app.logger.info("EMAIL_ENABLED false, e-posta gönderimi atlandı.")
-        return False
-    if not MAIL_USERNAME or not MAIL_PASSWORD:
-        app.logger.warning("Mail kullanıcı adı/şifre yok, e-posta gönderilemedi.")
-        return False
+    """Veritabanını oluştur ve tabloları hazırla"""
     try:
-        msg = Message(subject=subject, recipients=recipients, body=body)
+        conn = sqlite3.connect(DATABASE)
+        cursor = conn.cursor()
+    except Exception as e:
+        app.logger.error(f"Veritabanı bağlantı hatası: {e}")
+        return
+    
+    # Books tablosu
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS books (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            title TEXT NOT NULL,
+            author_name TEXT NOT NULL,
+            order_quantity INTEGER NOT NULL,
+            size TEXT NOT NULL,
+            status TEXT DEFAULT 'Hazırlanıyor',
+            track_code TEXT UNIQUE NOT NULL,
+            customer_email TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    
+    # İndeksler ekle
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_track_code ON books(track_code)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_status ON books(status)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_created_at ON books(created_at)')
+    cursor.execute('CREATE INDEX IF NOT EXISTS idx_customer_email ON books(customer_email)')
+    
+    # Users tablosu (admin girişi için)
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            username TEXT UNIQUE NOT NULL,
+            password TEXT NOT NULL,
+            role TEXT DEFAULT 'admin',
+            is_active BOOLEAN DEFAULT 1,
+            last_login TIMESTAMP,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    
+    # Contact messages tablosu
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS contact_messages (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            email TEXT NOT NULL,
+            message TEXT NOT NULL,
+            is_read BOOLEAN DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    
+    # Eğer is_read kolonu yoksa ekle
+    try:
+        cursor.execute('ALTER TABLE contact_messages ADD COLUMN is_read BOOLEAN DEFAULT 0')
+    except:
+        pass
+    
+    # Admin kullanıcısını oluştur
+    admin_username = os.environ.get('ADMIN_USERNAME', 'admin')
+    admin_password = os.environ.get('ADMIN_PASSWORD', 'admin123')
+    
+    # Eski admin kullanıcılarını sil
+    cursor.execute('DELETE FROM users WHERE username = ?', (admin_username,))
+    
+    # Yeni admin kullanıcısını oluştur
+    try:
+        hashed_password = hash_password(admin_password)
+        cursor.execute('INSERT INTO users (username, password) VALUES (?, ?)', (admin_username, hashed_password))
+        app.logger.info(f'Admin kullanıcısı oluşturuldu: {admin_username}')
+    except Exception as e:
+        app.logger.error(f'Admin kullanıcısı oluşturulamadı: {e}')
+    
+    try:
+        conn.commit()
+        conn.close()
+        app.logger.info('Veritabanı başarıyla başlatıldı')
+    except Exception as e:
+        app.logger.error(f"Veritabanı commit/close hatası: {e}")
+        try:
+            conn.close()
+        except:
+            pass
+
+def get_db_connection():
+    """Veritabanı bağlantısı oluştur"""
+    try:
+        conn = sqlite3.connect(DATABASE, timeout=10.0)
+        conn.row_factory = sqlite3.Row
+        conn.execute('PRAGMA foreign_keys = ON')
+        return conn
+    except Exception as e:
+        app.logger.error(f'Veritabanı bağlantı hatası: {e}')
+        return None
+
+def hash_password(password):
+    """Bcrypt ile güvenli şifre hash'leme"""
+    salt = bcrypt.gensalt()
+    return bcrypt.hashpw(password.encode('utf-8'), salt).decode('utf-8')
+
+def verify_password(password, hashed):
+    """Şifre doğrulama"""
+    return bcrypt.checkpw(password.encode('utf-8'), hashed.encode('utf-8'))
+
+
+# =============================================================================
+# YARDIMCI FONKSİYONLAR
+# =============================================================================
+
+def generate_track_code():
+    """Benzersiz takip kodu oluştur"""
+    formats = [
+        lambda: ''.join(random.choices(string.ascii_uppercase, k=3)) + ''.join(random.choices(string.digits, k=6)),
+        lambda: ''.join(random.choices(string.ascii_uppercase, k=2)) + ''.join(random.choices(string.digits, k=4)) + ''.join(random.choices(string.ascii_uppercase, k=2)),
+        lambda: ''.join(random.choices(string.digits, k=4)) + ''.join(random.choices(string.ascii_uppercase, k=4)),
+        lambda: ''.join(random.choices(string.ascii_uppercase, k=2)) + ''.join(random.choices(string.digits, k=6))
+    ]
+    return random.choice(formats)()
+
+def is_track_code_unique(track_code):
+    """Takip kodunun benzersiz olup olmadığını kontrol et"""
+    if not track_code:
+        return False
+    
+    conn = get_db_connection()
+    if conn:
+        try:
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) FROM books WHERE track_code = ?", (track_code,))
+            count = cursor.fetchone()[0]
+            return count == 0
+        except Exception as e:
+            app.logger.error(f"Takip kodu kontrol hatası: {e}")
+            return False
+        finally:
+            conn.close()
+    return False
+
+def get_unique_track_code():
+    """Benzersiz takip kodu oluştur ve döndür"""
+    max_attempts = 20
+    
+    for attempt in range(max_attempts):
+        track_code = generate_track_code()
+        if is_track_code_unique(track_code):
+            app.logger.info(f"Benzersiz takip kodu oluşturuldu (deneme {attempt + 1}): {track_code}")
+            return track_code
+    
+    # Eğer maksimum denemede benzersiz kod bulunamazsa, timestamp ekle
+    timestamp = datetime.now().strftime('%H%M%S')
+    base_code = generate_track_code()
+    final_code = f"{base_code}{timestamp}"
+    
+    if is_track_code_unique(final_code):
+        return final_code
+    else:
+        # Son çare: UUID kullan
+        unique_id = str(uuid.uuid4())[:8].upper()
+        return f"TRK{unique_id}"
+
+def validate_email(email):
+    """E-posta adresi validasyonu"""
+    if not email:
+        return False
+    pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+    return re.match(pattern, email) is not None
+
+def validate_book_data(title, author_name, order_quantity, size):
+    """Kitap verisi validasyonu"""
+    errors = []
+    
+    if not title or len(title.strip()) < 2:
+        errors.append('Kitap adı en az 2 karakter olmalıdır.')
+    
+    if not author_name or len(author_name.strip()) < 2:
+        errors.append('Yazar adı en az 2 karakter olmalıdır.')
+    
+    try:
+        qty = int(order_quantity)
+        if qty <= 0 or qty > 10000:
+            errors.append('Sipariş adedi 1-10000 arasında olmalıdır.')
+    except (ValueError, TypeError):
+        errors.append('Geçerli bir sipariş adedi giriniz.')
+    
+    if not size or len(size.strip()) < 2:
+        errors.append('Kitap boyutu en az 2 karakter olmalıdır.')
+    
+    return errors
+
+def sanitize_input(text):
+    """Kullanıcı girdilerini temizle"""
+    if not text:
+        return ''
+    
+    # HTML karakterlerini escape et
+    text = html.escape(text.strip())
+    
+    # Maksimum uzunluk kontrolü
+    if len(text) > 1000:
+        text = text[:1000]
+    
+    return text
+
+def login_required(f):
+    """Admin giriş kontrolü decorator'ı"""
+    def decorated_function(*args, **kwargs):
+        if 'admin_logged_in' not in session:
+            app.logger.warning(f'Yetkisiz erişim denemesi - IP: {request.remote_addr}, Route: {request.endpoint}')
+            return redirect(url_for('login'))
+        
+        # Session timeout kontrolü
+        if 'last_activity' in session:
+            if datetime.now() - datetime.fromisoformat(session['last_activity']) > app.permanent_session_lifetime:
+                session.clear()
+                flash('Oturumunuz zaman aşımına uğradı. Lütfen tekrar giriş yapın.', 'warning')
+                return redirect(url_for('login'))
+        
+        session['last_activity'] = datetime.now().isoformat()
+        return f(*args, **kwargs)
+    decorated_function.__name__ = f.__name__
+    return decorated_function
+
+
+# =============================================================================
+# E-POSTA FONKSİYONLARI
+# =============================================================================
+
+def send_email_notification(to_email, subject, body, track_code=None):
+    """Email bildirimi gönder"""
+    if not EMAIL_ENABLED:
+        app.logger.info(f"E-posta gönderme pasif: {subject} -> {to_email}")
+        return True
+    
+    if not app.config['MAIL_USERNAME'] or not app.config['MAIL_PASSWORD']:
+        app.logger.warning("E-posta konfigürasyonu eksik")
+        return False
+    
+    try:
+        msg = Message(
+            subject=subject,
+            sender=app.config['MAIL_USERNAME'],
+            recipients=[to_email]
+        )
+        msg.html = body
+        
+        # Logo ekle
+        try:
+            logo_path = os.path.join(app.static_folder, 'img', 'logo.png')
+            if os.path.exists(logo_path):
+                with open(logo_path, 'rb') as logo_file:
+                    msg.attach('logo.png', 'image/png', logo_file.read())
+        except Exception as logo_error:
+            app.logger.warning(f"Logo ekleme hatası: {logo_error}")
+        
         mail.send(msg)
+        app.logger.info(f"E-posta başarıyla gönderildi: {subject} -> {to_email}")
         return True
     except Exception as e:
-        app.logger.exception(f"E-posta gönderim hatası: {e}")
+        app.logger.error(f"Email gönderme hatası: {e}")
         return False
 
-# ---------------------------------------------------------------------
-# HTML Şablonları (tek dosya için inline)
-# ---------------------------------------------------------------------
-BASE_HTML = """
-<!doctype html>
-<html lang="tr">
-<head>
-  <meta charset="utf-8">
-  <title>Matbaa Takip</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <style>
-  body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu, Cantarell, 'Helvetica Neue', Arial, 'Noto Sans', 'Apple Color Emoji','Segoe UI Emoji'; 
-       margin:0;padding:0;background:#0d1117;color:#e6edf3}
-  header{background:#161b22;padding:16px 20px;display:flex;align-items:center;justify-content:space-between}
-  a{color:#7aa2f7;text-decoration:none}
-  .container{max-width:980px;margin:24px auto;padding:0 16px}
-  .card{background:#161b22;border:1px solid #30363d;border-radius:12px;padding:16px;margin-bottom:16px}
-  input,textarea,select{width:100%;padding:10px;border-radius:8px;border:1px solid #30363d;background:#0d1117;color:#e6edf3}
-  button{padding:10px 14px;border:1px solid #30363d;background:#21262d;color:#e6edf3;border-radius:8px;cursor:pointer}
-  button:hover{background:#30363d}
-  .row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-  table{width:100%;border-collapse:collapse}
-  th,td{border-bottom:1px solid #30363d;padding:10px;text-align:left}
-  .tag{display:inline-block;padding:4px 8px;border:1px solid #30363d;border-radius:999px;font-size:12px}
-  .muted{opacity:.8}
-  .right{float:right}
-  .danger{color:#f7768e}
-  .success{color:#9ece6a}
-  .center{text-align:center}
-  </style>
-</head>
-<body>
-<header>
-  <div><a href="{{ url_for('index') }}"><strong>🖨️ Matbaa Takip</strong></a></div>
-  <nav>
-    {% if session.get('user_id') %}
-      <span class="muted">Kullanıcı: <strong>{{ session.get('username') }}</strong>{% if session.get('is_admin') %} (admin){% endif %}</span>
-      &nbsp;|&nbsp;
-      <a href="{{ url_for('logout') }}">Çıkış</a>
-    {% else %}
-      <a href="{{ url_for('login') }}">Giriş</a>
-    {% endif %}
-  </nav>
-</header>
-<div class="container">
-  {% with messages = get_flashed_messages() %}
-    {% if messages %}
-      <div class="card">
-        {% for m in messages %}<div>• {{ m }}</div>{% endfor %}
-      </div>
-    {% endif %}
-  {% endwith %}
-  {% block content %}{% endblock %}
-</div>
-</body>
-</html>
-"""
+def send_track_code_email(book_data, customer_email=None):
+    """Takip kodu oluşturulduğunda email gönder"""
+    subject = f"Takip Kodunuz Oluşturuldu - {book_data['title']}"
+    
+    body = f"""
+    <!DOCTYPE html>
+    <html lang="tr">
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Takip Kodu Oluşturuldu</title>
+    </head>
+    <body style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 0; background-color: #f5f5f5;">
+        <div style="max-width: 600px; margin: 20px auto; background-color: #ffffff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);">
+            
+            <!-- Header -->
+            <div style="background-color: #007bff; padding: 30px; text-align: center;">
+                <h1 style="color: white; margin: 0; font-size: 24px; font-weight: 600;">Mavi Nefes Matbaa</h1>
+            </div>
+            
+            <!-- Content -->
+            <div style="padding: 30px;">
+                <h2 style="color: #333; margin-bottom: 20px; font-size: 20px; font-weight: 600;">Siparişiniz Başarıyla Alındı</h2>
+                
+                <p style="color: #666; line-height: 1.6; margin-bottom: 25px; font-size: 14px;">
+                    Değerli müşterimiz, kitabınız için takip kodu başarıyla oluşturuldu. 
+                    Aşağıdaki bilgileri dikkatlice inceleyiniz ve takip kodunuzu güvenli bir yerde saklayınız.
+                </p>
+                
+                <!-- Order Details -->
+                <div style="background-color: #f8f9fa; border-radius: 6px; padding: 20px; margin: 20px 0; border-left: 4px solid #007bff;">
+                    <h3 style="color: #333; margin: 0 0 15px 0; font-size: 16px; font-weight: 600;">Sipariş Detayları</h3>
+                    
+                    <table style="width: 100%; border-collapse: collapse;">
+                        <tr>
+                            <td style="padding: 8px 0; color: #666; font-size: 13px; width: 120px;"><strong>Kitap Adı:</strong></td>
+                            <td style="padding: 8px 0; color: #333; font-size: 14px;">{book_data['title']}</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 8px 0; color: #666; font-size: 13px;"><strong>Yazar:</strong></td>
+                            <td style="padding: 8px 0; color: #333; font-size: 14px;">{book_data['author_name']}</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 8px 0; color: #666; font-size: 13px;"><strong>Sipariş Adedi:</strong></td>
+                            <td style="padding: 8px 0; color: #333; font-size: 14px;">{book_data['order_quantity']} adet</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 8px 0; color: #666; font-size: 13px;"><strong>Kitap Boyutu:</strong></td>
+                            <td style="padding: 8px 0; color: #333; font-size: 14px;">{book_data['size']}</td>
+                        </tr>
+                        <tr>
+                            <td style="padding: 8px 0; color: #666; font-size: 13px;"><strong>Mevcut Durum:</strong></td>
+                            <td style="padding: 8px 0; color: #28a745; font-size: 14px; font-weight: 600;">{book_data['status']}</td>
+                        </tr>
+                    </table>
+                </div>
+                
+                <!-- Track Code -->
+                <div style="text-align: center; margin: 25px 0;">
+                    <p style="margin: 0 0 10px 0; color: #666; font-size: 13px; text-transform: uppercase; letter-spacing: 1px;"><strong>Takip Kodu</strong></p>
+                    <div style="background-color: #007bff; color: white; padding: 15px 25px; border-radius: 6px; font-size: 20px; font-weight: bold; letter-spacing: 2px; display: inline-block;">
+                        {book_data['track_code']}
+                    </div>
+                </div>
+                
+                <!-- Contact Info -->
+                <div style="background-color: #e3f2fd; border-radius: 6px; padding: 20px; margin: 20px 0;">
+                    <h4 style="color: #1976d2; margin: 0 0 15px 0; font-size: 16px; font-weight: 600;">İletişim Bilgileri</h4>
+                    <p style="color: #333; margin: 5px 0; font-size: 14px;">
+                        <strong>E-posta:</strong> your-email@domain.com
+                    </p>
+                    <p style="color: #333; margin: 5px 0; font-size: 14px;">
+                        <strong>Telefon:</strong> +90 258 266 55 44
+                    </p>
+                    <p style="color: #333; margin: 5px 0; font-size: 14px;">
+                        <strong>Adres:</strong> Mavi Nefes Yayınları, Zümrüt, Vatan Cd No:240, 20160 Denizli Merkez/Denizli
+                    </p>
+                </div>
+            </div>
+            
+            <!-- Footer -->
+            <div style="background-color: #6c757d; color: white; padding: 20px; text-align: center;">
+                <p style="margin: 0 0 5px 0; font-size: 12px; color: rgba(255,255,255,0.8);">
+                    Bu e-posta Mavi Nefes Matbaa Takip Sistemi tarafından otomatik olarak gönderilmiştir.
+                </p>
+                <p style="margin: 0; font-size: 11px; color: rgba(255,255,255,0.6);">
+                    © 2025 Mavi Nefes Matbaa. Tüm hakları saklıdır.
+                </p>
+            </div>
+        </div>
+    </body>
+    </html>
+    """
+    
+    # Eğer müşteri email adresi verilmişse onu kullan, yoksa demo email
+    to_email = customer_email if customer_email else "demo@example.com"
+    return send_email_notification(to_email, subject, body, book_data['track_code'])
 
-INDEX_HTML = """
-{% extends 'base.html' %}
-{% block content %}
-  <div class="card">
-    <h2>İş Listesi</h2>
-    <p class="muted">Toplam: {{ jobs|length }} kayıt</p>
-    {% if session.get('user_id') %}
-      <a href="{{ url_for('new_job') }}"><button>+ Yeni İş</button></a>
-      {% if session.get('is_admin') %}
-        <a class="right" href="{{ url_for('admin') }}"><button>⚙️ Admin Panel</button></a>
-      {% endif %}
-    {% else %}
-      <a href="{{ url_for('login') }}"><button>Giriş yap</button></a>
-    {% endif %}
-  </div>
 
-  <div class="card">
-    <table>
-      <thead>
-        <tr><th>ID</th><th>Başlık</th><th>Durum</th><th>Oluşturma</th><th></th></tr>
-      </thead>
-      <tbody>
-        {% for j in jobs %}
-        <tr>
-          <td>#{{ j.id }}</td>
-          <td>{{ j.title }}</td>
-          <td><span class="tag">{{ j.status }}</span></td>
-          <td class="muted">{{ j.created_at }}</td>
-          <td>
-            <a href="{{ url_for('job_detail', job_id=j.id) }}">Görüntüle</a>
-            {% if session.get('user_id') %} • <a href="{{ url_for('edit_job', job_id=j.id) }}">Düzenle</a>{% endif %}
-            {% if session.get('is_admin') %} • <a class="danger" href="{{ url_for('delete_job', job_id=j.id) }}" onclick="return confirm('Silinsin mi?')">Sil</a>{% endif %}
-          </td>
-        </tr>
-        {% else %}
-        <tr><td colspan="5" class="center muted">Kayıt yok</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-{% endblock %}
-"""
+# =============================================================================
+# ANA ROUTE'LAR
+# =============================================================================
 
-LOGIN_HTML = """
-{% extends 'base.html' %}
-{% block content %}
-  <div class="card" style="max-width:480px;margin:0 auto;">
-    <h2>Giriş</h2>
-    <form method="post" autocomplete="off">
-      <label>Kullanıcı Adı</label>
-      <input name="username" required autofocus placeholder="örn. {{ sample_username }}">
-      <label>Şifre</label>
-      <input name="password" type="password" required placeholder="●●●●●●●●">
-      <div style="margin-top:12px">
-        <button type="submit">Giriş yap</button>
-      </div>
-      <p class="muted" style="margin-top:12px">Not: Kullanıcı adı <strong>büyük/küçük harf duyarlı</strong>dır.</p>
-    </form>
-  </div>
-{% endblock %}
-"""
-
-ADMIN_HTML = """
-{% extends 'base.html' %}
-{% block content %}
-  <div class="card">
-    <h2>Admin Panel</h2>
-    <p class="muted">.env'deki admin bilgileri: <code>{{ admin_username }}</code></p>
-    <form method="post" action="{{ url_for('admin_reset') }}" onsubmit="return confirm('Admin hesabı .env\'e göre sıfırlansın mı?');">
-      <button type="submit">Admin hesabını .env\'e göre SIFIRLA</button>
-    </form>
-  </div>
-
-  <div class="card">
-    <h3>Kullanıcılar</h3>
-    <table>
-      <thead><tr><th>ID</th><th>Kullanıcı</th><th>Admin</th><th>E-posta</th></tr></thead>
-      <tbody>
-        {% for u in users %}
-          <tr><td>{{ u.id }}</td><td>{{ u.username }}</td><td>{{ '✔' if u.is_admin else '—' }}</td><td>{{ u.email or '—' }}</td></tr>
-        {% endfor %}
-      </tbody>
-    </table>
-  </div>
-{% endblock %}
-"""
-
-JOB_FORM_HTML = """
-{% extends 'base.html' %}
-{% block content %}
-  <div class="card" style="max-width:720px;margin:0 auto;">
-    <h2>{{ 'İşi Düzenle' if job else 'Yeni İş' }}</h2>
-    <form method="post">
-      <label>Başlık</label>
-      <input name="title" required value="{{ job.title if job else '' }}">
-      <label>Açıklama</label>
-      <textarea name="description" rows="5">{{ job.description if job else '' }}</textarea>
-      <label>Durum</label>
-      <select name="status">
-        {% for st in ['pending','in_progress','done','cancelled'] %}
-          <option value="{{ st }}" {% if job and job.status==st %}selected{% endif %}>{{ st }}</option>
-        {% endfor %}
-      </select>
-      <div style="margin-top:12px">
-        <button type="submit">Kaydet</button>
-        <a href="{{ url_for('index') }}"><button type="button">İptal</button></a>
-      </div>
-    </form>
-  </div>
-{% endblock %}
-"""
-
-JOB_DETAIL_HTML = """
-{% extends 'base.html' %}
-{% block content %}
-  <div class="card">
-    <h2>#{{ job.id }} - {{ job.title }}</h2>
-    <p><span class="tag">{{ job.status }}</span></p>
-    <p class="muted">Oluşturma: {{ job.created_at }}</p>
-    <p style="white-space:pre-wrap">{{ job.description or '—' }}</p>
-    <div style="margin-top:12px">
-      {% if session.get('user_id') %}
-        <a href="{{ url_for('edit_job', job_id=job.id) }}"><button>Düzenle</button></a>
-      {% endif %}
-      {% if session.get('is_admin') %}
-        <a href="{{ url_for('delete_job', job_id=job.id) }}" class="danger" onclick="return confirm('Silinsin mi?')"><button>Sil</button></a>
-      {% endif %}
-      <a href="{{ url_for('index') }}"><button>Geri</button></a>
-    </div>
-  </div>
-{% endblock %}
-"""
-
-# ---------------------------------------------------------------------
-# Template register (render_template_string ile extends için env'e base'i ekleyelim)
-# ---------------------------------------------------------------------
-from jinja2 import DictLoader
-app.jinja_loader = DictLoader({
-    "base.html": BASE_HTML,
-    "index.html": INDEX_HTML,
-    "login.html": LOGIN_HTML,
-    "admin.html": ADMIN_HTML,
-    "job_form.html": JOB_FORM_HTML,
-    "job_detail.html": JOB_DETAIL_HTML,
-})
-
-# ---------------------------------------------------------------------
-# Rotalar
-# ---------------------------------------------------------------------
-@app.route("/")
+@app.route('/')
 def index():
-    conn = get_db()
-    jobs = conn.execute("SELECT id, title, description, status, created_at FROM jobs ORDER BY id DESC").fetchall()
-    conn.close()
-    return render_template_string(INDEX_HTML, jobs=jobs)
+    """Ana sayfa"""
+    return render_template('index.html')
 
-@app.route("/login", methods=["GET", "POST"])
+@app.route('/track', methods=['GET', 'POST'])
+def track():
+    """Kitap takip sayfası"""
+    if request.method == 'POST':
+        track_code = request.form.get('track_code')
+        
+        if not track_code:
+            flash('Lütfen takip kodunu giriniz.', 'error')
+            return render_template('track.html')
+        
+        conn = get_db_connection()
+        if conn:
+            try:
+                cursor = conn.cursor()
+                cursor.execute("SELECT * FROM books WHERE track_code = ?", (track_code,))
+                book = cursor.fetchone()
+                
+                if book:
+                    book_data = {
+                        'id': book[0],
+                        'title': book[1],
+                        'author_name': book[2],
+                        'order_quantity': book[3],
+                        'size': book[4],
+                        'status': book[5],
+                        'track_code': book[6],
+                        'customer_email': book[7],
+                        'created_at': book[8],
+                        'updated_at': book[9] if len(book) > 9 else None
+                    }
+                    
+                    app.logger.info(f"Track sayfası - Kitap bulundu: {book_data['title']}, Track kodu: {track_code}")
+                    return render_template('track.html', book=book_data, found=True)
+                else:
+                    flash('Böyle bir kitap bulunamadı.', 'error')
+            except Exception as e:
+                app.logger.error(f"Track sayfası hatası: {e}")
+                flash('Bir hata oluştu.', 'error')
+            finally:
+                conn.close()
+        
+        return render_template('track.html')
+    
+    return render_template('track.html')
+
+@app.route('/login', methods=['GET', 'POST'])
+@limiter.limit("5 per minute")
 def login():
-    if request.method == "POST":
-        username = request.form.get("username", "")
-        password = request.form.get("password", "")
+    """Admin giriş sayfası"""
+    if request.method == 'POST':
+        username = request.form.get('username', '').strip()
+        password = request.form.get('password', '')
+        
+        if not username or not password:
+            flash('Kullanıcı adı ve şifre gereklidir.', 'error')
+            app.logger.warning(f'Eksik giriş bilgileri - IP: {request.remote_addr}')
+            return render_template('login.html')
+        
+        conn = get_db_connection()
+        if conn:
+            try:
+                cursor = conn.cursor()
+                cursor.execute("SELECT id, username, password FROM users WHERE username = ?", (username,))
+                user = cursor.fetchone()
+                
+                if user and verify_password(password, user[2]):
+                    session.permanent = True
+                    session['admin_logged_in'] = True
+                    session['admin_username'] = username
+                    session['admin_user_id'] = user[0]
+                    
+                    conn.commit()
+                    app.logger.info(f'Başarılı giriş - Kullanıcı: {username}, IP: {request.remote_addr}')
+                    
+                    return redirect(url_for('admin_dashboard'))
+                else:
+                    flash('Kullanıcı adı veya şifre yanlış.', 'error')
+                    app.logger.warning(f'Başarısız giriş denemesi - Kullanıcı: {username}, IP: {request.remote_addr}')
+            except Exception as e:
+                flash('Giriş sırasında bir hata oluştu.', 'error')
+                app.logger.error(f'Giriş hatası: {e}')
+            finally:
+                conn.close()
+        
+        return render_template('login.html')
+    
+    return render_template('login.html')
 
-        conn = get_db()
-        user = conn.execute("SELECT id, username, password_hash, is_admin FROM users WHERE username = ?", (username,)).fetchone()
-        conn.close()
-
-        if user and bcrypt.check_password_hash(user["password_hash"], password):
-            session["user_id"] = user["id"]
-            session["username"] = user["username"]
-            session["is_admin"] = bool(user["is_admin"])
-            flash("Giriş başarılı.")
-            next_url = request.args.get("next") or url_for("index")
-            return redirect(next_url)
-        else:
-            flash("Kullanıcı adı veya şifre hatalı.")
-            return redirect(url_for("login"))
-    return render_template_string(LOGIN_HTML, sample_username=ADMIN_USERNAME)
-
-@app.route("/logout")
+@app.route('/logout')
 def logout():
+    """Oturumu kapat"""
+    username = session.get('admin_username', 'Unknown')
+    app.logger.info(f'Kullanıcı çıkış yaptı - Kullanıcı: {username}, IP: {request.remote_addr}')
     session.clear()
-    flash("Çıkış yapıldı.")
-    return redirect(url_for("index"))
+    
+    # Flash mesajını session'a kaydet ve index'e yönlendir
+    session['logout_message'] = 'Başarıyla çıkış yaptınız.'
+    return redirect(url_for('index'))
 
-@app.route("/admin")
-@admin_required
-def admin():
-    conn = get_db()
-    users = conn.execute("SELECT id, username, is_admin, email FROM users ORDER BY id ASC").fetchall()
-    conn.close()
-    return render_template_string(ADMIN_HTML, users=users, admin_username=ADMIN_USERNAME)
+@app.route('/clear-logout-message', methods=['POST'])
+def clear_logout_message():
+    """Logout mesajını session'dan temizle"""
+    if 'logout_message' in session:
+        del session['logout_message']
+    return jsonify({'success': True})
 
-@app.route("/admin/reset", methods=["POST"])
-@admin_required
-def admin_reset():
-    """Admin hesabını .env'e göre sil-yarat."""
-    conn = get_db()
-    cur = conn.cursor()
-    cur.execute("DELETE FROM users WHERE username = ?", (ADMIN_USERNAME,))
-    new_hash = bcrypt.generate_password_hash(ADMIN_PASSWORD).decode("utf-8")
-    cur.execute(
-        "INSERT INTO users (username, password_hash, is_admin, email) VALUES (?, ?, ?, ?)",
-        (ADMIN_USERNAME, new_hash, 1, None)
-    )
-    conn.commit()
-    conn.close()
-    flash("Admin hesabı .env'e göre sıfırlandı.")
-    return redirect(url_for("admin"))
-
-# --- İş CRUD ---
-@app.route("/jobs/new", methods=["GET", "POST"])
-@login_required
-def new_job():
-    if request.method == "POST":
-        title = request.form.get("title", "").strip()
-        description = request.form.get("description", "").strip()
-        status = request.form.get("status", "pending").strip() or "pending"
-        if not title:
-            flash("Başlık zorunludur.")
-            return redirect(url_for("new_job"))
-
-        conn = get_db()
-        conn.execute(
-            "INSERT INTO jobs (title, description, status, created_at) VALUES (?, ?, ?, ?)",
-            (title, description, status, datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
-        )
-        conn.commit()
-        conn.close()
-
-        # Örnek e-posta bildirimi (aktif ise)
-        send_email_notification(
-            subject=f"Yeni iş oluşturuldu: {title}",
-            recipients=[MAIL_DEFAULT_SENDER],
-            body=f"Başlık: {title}\nDurum: {status}\nAçıklama:\n{description}"
-        )
-
-        flash("İş eklendi.")
-        return redirect(url_for("index"))
-
-    return render_template_string(JOB_FORM_HTML, job=None)
-
-@app.route("/jobs/<int:job_id>")
-def job_detail(job_id):
-    conn = get_db()
-    job = conn.execute("SELECT * FROM jobs WHERE id = ?", (job_id,)).fetchone()
-    conn.close()
-    if not job:
-        abort(404)
-    return render_template_string(JOB_DETAIL_HTML, job=job)
-
-@app.route("/jobs/<int:job_id>/edit", methods=["GET", "POST"])
-@login_required
-def edit_job(job_id):
-    conn = get_db()
-    job = conn.execute("SELECT * FROM jobs WHERE id = ?", (job_id,)).fetchone()
-    if not job:
-        conn.close()
-        abort(404)
-
-    if request.method == "POST":
-        title = request.form.get("title", "").strip()
-        description = request.form.get("description", "").strip()
-        status = request.form.get("status", "pending").strip() or "pending"
-        if not title:
-            flash("Başlık zorunludur.")
+@app.route('/health')
+def health_check():
+    """Sistem sağlık kontrolü"""
+    try:
+        # Veritabanı bağlantısını test et
+        conn = get_db_connection()
+        if conn:
+            cursor = conn.cursor()
+            cursor.execute('SELECT 1')
+            db_status = 'healthy'
             conn.close()
-            return redirect(url_for("edit_job", job_id=job_id))
+        else:
+            db_status = 'unhealthy'
+        
+        # Cache durumunu kontrol et
+        try:
+            cache.set('health_check', 'ok', timeout=10)
+            cache_status = 'healthy'
+        except:
+            cache_status = 'unhealthy'
+        
+        return jsonify({
+            'status': 'healthy',
+            'timestamp': datetime.now().isoformat(),
+            'database': db_status,
+            'cache': cache_status,
+            'environment': os.environ.get('FLASK_ENV', 'development'),
+            'version': '1.0.0'
+        })
+    except Exception as e:
+        return jsonify({
+            'status': 'unhealthy',
+            'error': str(e),
+            'timestamp': datetime.now().isoformat()
+        }), 500
 
-        conn.execute("UPDATE jobs SET title=?, description=?, status=? WHERE id=?",
-                     (title, description, status, job_id))
-        conn.commit()
+
+# =============================================================================
+# ADMIN ROUTE'LARI
+# =============================================================================
+
+@app.route('/admin/dashboard')
+@login_required
+@cache.cached(timeout=60)
+def admin_dashboard():
+    """Admin paneli"""
+    conn = get_db_connection()
+    if conn:
+        try:
+            cursor = conn.cursor()
+            
+            # Toplam kitap sayısı
+            cursor.execute("SELECT COUNT(*) FROM books")
+            total_books = cursor.fetchone()[0]
+            
+            # Aktif siparişler (Hazır olmayanlar)
+            cursor.execute("SELECT COUNT(*) FROM books WHERE status != 'Hazır'")
+            active_orders = cursor.fetchone()[0]
+            
+            # Tamamlanan siparişler
+            cursor.execute("SELECT COUNT(*) FROM books WHERE status = 'Hazır'")
+            completed_orders = cursor.fetchone()[0]
+            
+            # Son eklenen kitaplar
+            cursor.execute("SELECT id, title, author_name, order_quantity, size, status, track_code, customer_email FROM books ORDER BY created_at DESC LIMIT 5")
+            recent_books = []
+            for row in cursor.fetchall():
+                recent_books.append({
+                    'id': row[0],
+                    'title': row[1],
+                    'author_name': row[2],
+                    'order_quantity': row[3],
+                    'size': row[4],
+                    'status': row[5],
+                    'track_code': row[6],
+                    'customer_email': row[7]
+                })
+            
+            return render_template('admin_dashboard.html', 
+                                 total_books=total_books,
+                                 active_orders=active_orders,
+                                 completed_orders=completed_orders,
+                                 recent_books=recent_books)
+        except Exception as e:
+            flash('Veriler yüklenirken bir hata oluştu.', 'error')
+        finally:
+            conn.close()
+    
+    return render_template('admin_dashboard.html')
+
+@app.route('/admin/add', methods=['GET', 'POST'])
+@login_required
+def add_book():
+    """Kitap ekleme sayfası"""
+    if request.method == 'POST':
+        try:
+            # Form verilerini al ve temizle
+            title = sanitize_input(request.form.get('title', ''))
+            author_name = sanitize_input(request.form.get('author_name', ''))
+            track_code = sanitize_input(request.form.get('track_code', ''))
+            order_quantity = request.form.get('order_quantity')
+            size = sanitize_input(request.form.get('size', ''))
+            status = request.form.get('status', 'Sipariş Alındı')
+            customer_email = sanitize_input(request.form.get('customer_email', ''))
+            send_email = request.form.get('send_email') == 'on'
+            
+            # Gelişmiş validasyon
+            validation_errors = validate_book_data(title, author_name, order_quantity, size)
+            if validation_errors:
+                for error in validation_errors:
+                    flash(error, 'error')
+                return render_template('add_book.html')
+            
+            # E-posta validasyonu
+            if send_email and customer_email:
+                if not validate_email(customer_email):
+                    flash('Geçerli bir e-posta adresi giriniz.', 'error')
+                    return render_template('add_book.html')
+            
+            # Takip kodu oluşturma
+            if not track_code:
+                track_code = get_unique_track_code()
+                app.logger.info(f"Otomatik takip kodu oluşturuldu: {track_code}")
+            else:
+                # Manuel girilen takip kodunun benzersiz olup olmadığını kontrol et
+                if not is_track_code_unique(track_code):
+                    flash('Bu takip kodu zaten kullanılıyor. Lütfen farklı bir kod girin.', 'error')
+                    return render_template('add_book.html')
+            
+            # Veritabanına kaydet
+            conn = get_db_connection()
+            if not conn:
+                flash('Veritabanı bağlantısı kurulamadı.', 'error')
+                return render_template('add_book.html')
+            
+            try:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    INSERT INTO books (title, author_name, order_quantity, size, status, track_code, customer_email)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                """, (title, author_name, order_quantity, size, status, track_code, customer_email))
+                conn.commit()
+                
+                book_id = cursor.lastrowid
+                app.logger.info(f"Kitap başarıyla kaydedildi. ID: {book_id}, Takip Kodu: {track_code}")
+                
+                # Cache'i temizle
+                cache.clear()
+                
+                # E-posta gönderme işlemi
+                email_sent = False
+                if send_email and customer_email:
+                    book_data = {
+                        'title': title,
+                        'author_name': author_name,
+                        'track_code': track_code,
+                        'order_quantity': order_quantity,
+                        'size': size,
+                        'status': status
+                    }
+                    
+                    app.logger.info(f"E-posta gönderiliyor: {customer_email}")
+                    email_sent = send_track_code_email(book_data, customer_email)
+                    
+                    if email_sent:
+                        app.logger.info("E-posta başarıyla gönderildi")
+                        flash(f'✅ Kitap başarıyla eklendi! Takip kodu: {track_code} - E-posta gönderildi.', 'success')
+                    else:
+                        app.logger.warning("E-posta gönderilemedi")
+                        flash(f'⚠️ Kitap başarıyla eklendi (Takip kodu: {track_code}) ancak e-posta gönderilemedi.', 'warning')
+                else:
+                    flash(f'✅ Kitap başarıyla eklendi! Takip kodu: {track_code}', 'success')
+                
+                return redirect(url_for('admin_dashboard'))
+                
+            except Exception as e:
+                print(f"Veritabanı hatası: {e}")
+                flash('Kitap eklenirken bir hata oluştu.', 'error')
+                return render_template('add_book.html')
+            finally:
+                conn.close()
+                
+        except Exception as e:
+            app.logger.error(f"Genel hata: {e}")
+            flash('Beklenmeyen bir hata oluştu.', 'error')
+            return render_template('add_book.html')
+    
+    return render_template('add_book.html')
+
+@app.route('/admin/update/<int:book_id>', methods=['GET', 'POST'])
+@login_required
+def update_book(book_id):
+    """Kitap güncelleme sayfası"""
+    if request.method == 'POST':
+        title = request.form.get('title')
+        author_name = request.form.get('author_name')
+        order_quantity = request.form.get('order_quantity')
+        size = request.form.get('size')
+        status = request.form.get('status')
+        customer_email = request.form.get('customer_email')
+        send_status_email = request.form.get('send_status_email') == 'on'
+        
+        conn = get_db_connection()
+        if not conn:
+            flash('Veritabanı bağlantısı kurulamadı.', 'error')
+            return redirect(url_for('admin_dashboard'))
+        
+        try:
+            cursor = conn.cursor()
+            
+            # Önce mevcut kitap bilgilerini al
+            cursor.execute("SELECT * FROM books WHERE id = ?", (book_id,))
+            book = cursor.fetchone()
+            
+            if not book:
+                flash('Kitap bulunamadı.', 'error')
+                return redirect(url_for('admin_dashboard'))
+            
+            old_status = book[5]  # Eski durum
+            
+            # Güncelleme işlemi
+            cursor.execute("""
+                UPDATE books SET title=?, author_name=?, order_quantity=?, size=?, status=?, customer_email=?, updated_at=CURRENT_TIMESTAMP
+                WHERE id=?
+            """, (title, author_name, order_quantity, size, status, customer_email, book_id))
+            
+            conn.commit()
+            
+            # Cache'i temizle
+            cache.clear()
+            
+            flash('Kitap başarıyla güncellendi.', 'success')
+            return redirect(url_for('admin_dashboard'))
+        except Exception as e:
+            flash('Kitap güncellenirken bir hata oluştu.', 'error')
+            app.logger.error(f"Güncelleme hatası: {e}")
+        finally:
+            conn.close()
+    
+    # GET isteği - Kitap bilgilerini getir
+    conn = get_db_connection()
+    if not conn:
+        flash('Veritabanı bağlantısı kurulamadı.', 'error')
+        return redirect(url_for('admin_dashboard'))
+    
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM books WHERE id = ?", (book_id,))
+        book = cursor.fetchone()
+        
+        if book:
+            book_data = {
+                'id': book[0],
+                'title': book[1],
+                'author_name': book[2],
+                'order_quantity': book[3],
+                'size': book[4],
+                'status': book[5],
+                'track_code': book[6],
+                'customer_email': book[7],
+                'created_at': book[8],
+                'updated_at': book[9] if len(book) > 9 else None
+            }
+            return render_template('update_book.html', book=book_data)
+        else:
+            flash('Kitap bulunamadı.', 'error')
+            return redirect(url_for('admin_dashboard'))
+    except Exception as e:
+        flash('Kitap bilgileri yüklenirken bir hata oluştu.', 'error')
+        app.logger.error(f"Veri yükleme hatası: {e}")
+        return redirect(url_for('admin_dashboard'))
+    finally:
         conn.close()
 
-        # Örnek e-posta bildirimi (aktif ise)
-        send_email_notification(
-            subject=f"İş güncellendi: {title}",
-            recipients=[MAIL_DEFAULT_SENDER],
-            body=f"ID: {job_id}\nBaşlık: {title}\nYeni durum: {status}\nAçıklama:\n{description}"
-        )
-
-        flash("İş güncellendi.")
-        return redirect(url_for("job_detail", job_id=job_id))
-
-    conn.close()
-    return render_template_string(JOB_FORM_HTML, job=job)
-
-@app.route("/jobs/<int:job_id>/delete")
-@admin_required
-def delete_job(job_id):
-    conn = get_db()
-    cur = conn.cursor()
-    cur.execute("DELETE FROM jobs WHERE id = ?", (job_id,))
-    deleted = cur.rowcount
-    conn.commit()
-    conn.close()
-    if deleted:
-        flash("İş silindi.")
+@app.route('/admin/delete/<int:book_id>', methods=['DELETE'])
+@login_required
+def delete_book(book_id):
+    """Kitap silme endpoint'i"""
+    conn = get_db_connection()
+    if conn:
+        try:
+            cursor = conn.cursor()
+            
+            # Önce kitabın var olup olmadığını kontrol et
+            cursor.execute("SELECT * FROM books WHERE id = ?", (book_id,))
+            book = cursor.fetchone()
+            
+            if not book:
+                return jsonify({'success': False, 'error': 'Kitap bulunamadı'})
+            
+            # Kitabı veritabanından sil
+            cursor.execute("DELETE FROM books WHERE id = ?", (book_id,))
+            conn.commit()
+            
+            return jsonify({'success': True, 'message': 'Kitap başarıyla silindi'})
+            
+        except Exception as e:
+            app.logger.error(f"Kitap silme hatası: {e}")
+            return jsonify({'success': False, 'error': str(e)})
+        finally:
+            conn.close()
     else:
-        flash("İş bulunamadı.")
-    return redirect(url_for("index"))
+        return jsonify({'success': False, 'error': 'Veritabanı bağlantısı kurulamadı'})
 
-# Basit API örneği
-@app.route("/api/jobs")
-def api_jobs():
-    conn = get_db()
-    jobs = conn.execute("SELECT id, title, status, created_at FROM jobs ORDER BY id DESC").fetchall()
-    conn.close()
-    return jsonify([dict(j) for j in jobs])
+@app.route('/admin/books/all-page')
+@login_required
+def all_books_page():
+    """Tüm kitaplar sayfası"""
+    conn = get_db_connection()
+    if conn:
+        try:
+            cursor = conn.cursor()
+            cursor.execute("SELECT id, title, author_name, order_quantity, size, status, track_code, customer_email FROM books ORDER BY created_at DESC")
+            books = []
+            for row in cursor.fetchall():
+                books.append({
+                    'id': row[0],
+                    'title': row[1],
+                    'author_name': row[2],
+                    'order_quantity': row[3],
+                    'size': row[4],
+                    'status': row[5],
+                    'track_code': row[6],
+                    'customer_email': row[7]
+                })
+            return render_template('books_list.html', books=books, title="Tüm Kitaplar", type="all")
+        except Exception as e:
+            flash('Veriler yüklenirken bir hata oluştu.', 'error')
+        finally:
+            conn.close()
+    return redirect(url_for('admin_dashboard'))
 
-# Sağlık kontrolü
-@app.route("/healthz")
-def healthz():
-    return {"status": "ok", "env": FLASK_ENV}, 200
+@app.route('/admin/books/active-page')
+@login_required
+def active_books_page():
+    """Aktif siparişler sayfası"""
+    conn = get_db_connection()
+    if conn:
+        try:
+            cursor = conn.cursor()
+            cursor.execute("SELECT id, title, author_name, order_quantity, size, status, track_code, customer_email FROM books WHERE status != 'Hazır' ORDER BY created_at DESC")
+            books = []
+            for row in cursor.fetchall():
+                books.append({
+                    'id': row[0],
+                    'title': row[1],
+                    'author_name': row[2],
+                    'order_quantity': row[3],
+                    'size': row[4],
+                    'status': row[5],
+                    'track_code': row[6],
+                    'customer_email': row[7]
+                })
+            return render_template('books_list.html', books=books, title="Aktif Siparişler", type="active")
+        except Exception as e:
+            flash('Veriler yüklenirken bir hata oluştu.', 'error')
+        finally:
+            conn.close()
+    return redirect(url_for('admin_dashboard'))
 
-# ---------------------------------------------------------------------
-# Çalıştırma
-# ---------------------------------------------------------------------
-if __name__ == "__main__":
-    # Geliştirme için debug isteğe bağlı: FLASK_ENV=development ise debug True yap
-    debug = FLASK_ENV.strip().lower() == "development"
-    app.run(host="0.0.0.0", port=5000, debug=debug)
+@app.route('/admin/books/completed-page')
+@login_required
+def completed_books_page():
+    """Tamamlanan siparişler sayfası"""
+    conn = get_db_connection()
+    if conn:
+        try:
+            cursor = conn.cursor()
+            cursor.execute("SELECT id, title, author_name, order_quantity, size, status, track_code, customer_email FROM books WHERE status = 'Hazır' ORDER BY created_at DESC")
+            books = []
+            for row in cursor.fetchall():
+                books.append({
+                    'id': row[0],
+                    'title': row[1],
+                    'author_name': row[2],
+                    'order_quantity': row[3],
+                    'size': row[4],
+                    'status': row[5],
+                    'track_code': row[6],
+                    'customer_email': row[7]
+                })
+            return render_template('books_list.html', books=books, title="Tamamlanan Siparişler", type="completed")
+        except Exception as e:
+            flash('Veriler yüklenirken bir hata oluştu.', 'error')
+        finally:
+            conn.close()
+    return redirect(url_for('admin_dashboard'))
+
+
+# =============================================================================
+# İLETİŞİM ROUTE'LARI
+# =============================================================================
+
+@app.route('/contact', methods=['POST'])
+@limiter.limit("3 per minute")
+def contact():
+    """İletişim formu gönderimi"""
+    try:
+        name = request.form.get('name')
+        email = request.form.get('email')
+        message = request.form.get('message')
+        
+        if not name or not email or not message:
+            return jsonify({'success': False, 'message': 'Tüm alanları doldurun'}), 400
+        
+        conn = get_db_connection()
+        if conn:
+            try:
+                cursor = conn.cursor()
+                cursor.execute(
+                    'INSERT INTO contact_messages (name, email, message) VALUES (?, ?, ?)',
+                    (name, email, message)
+                )
+                conn.commit()
+                
+                return jsonify({'success': True, 'message': 'Mesajınız başarıyla gönderildi'}), 200
+                
+            except Exception as e:
+                return jsonify({'success': False, 'message': f'Veritabanı hatası: {str(e)}'}), 500
+            finally:
+                conn.close()
+        
+        return jsonify({'success': False, 'message': 'Veritabanı bağlantı hatası'}), 500
+        
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'Sistem hatası: {str(e)}'}), 500
+
+@app.route('/admin/contact-messages')
+@login_required
+def contact_messages():
+    """İletişim mesajları sayfası"""
+    conn = get_db_connection()
+    if conn:
+        try:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT id, name, email, message, is_read, created_at 
+                FROM contact_messages 
+                ORDER BY created_at DESC
+            ''')
+            
+            messages = []
+            for row in cursor.fetchall():
+                created_at = row[5]
+                if isinstance(created_at, str):
+                    try:
+                        created_at = datetime.strptime(created_at, '%Y-%m-%d %H:%M:%S')
+                    except:
+                        created_at = created_at
+                
+                messages.append({
+                    'id': row[0],
+                    'name': row[1],
+                    'email': row[2],
+                    'message': row[3],
+                    'is_read': bool(row[4]),
+                    'created_at': created_at
+                })
+            
+            return render_template('contact_messages.html', contact_messages=messages)
+            
+        except Exception as e:
+            flash(f'Mesajlar yüklenirken hata oluştu: {str(e)}', 'error')
+            return render_template('contact_messages.html', contact_messages=[])
+        finally:
+            conn.close()
+    
+    flash('Veritabanı bağlantı hatası', 'error')
+    return render_template('contact_messages.html', contact_messages=[])
+
+
+# =============================================================================
+# HATA YÖNETİMİ
+# =============================================================================
+
+@app.errorhandler(404)
+def not_found_error(error):
+    """404 Hata sayfası"""
+    app.logger.warning(f'404 hatası - IP: {request.remote_addr}, URL: {request.url}')
+    return render_template('errors/404.html'), 404
+
+@app.errorhandler(500)
+def internal_error(error):
+    """500 Hata sayfası"""
+    app.logger.error(f'500 hatası - IP: {request.remote_addr}, URL: {request.url}, Error: {error}')
+    
+    # Production'da detaylı hata bilgisi gösterme
+    if os.environ.get('FLASK_ENV') == 'production':
+        return render_template('errors/500.html'), 500
+    else:
+        # Development'ta detaylı hata
+        return f'<h1>Internal Server Error</h1><p>{error}</p>', 500
+
+@app.errorhandler(403)
+def forbidden_error(error):
+    """403 Hata sayfası"""
+    app.logger.warning(f'403 hatası - IP: {request.remote_addr}, URL: {request.url}')
+    return render_template('errors/403.html'), 403
+
+@app.errorhandler(429)
+def ratelimit_handler(e):
+    """Rate limit aşıldığında"""
+    app.logger.warning(f'Rate limit aşıldı - IP: {request.remote_addr}, URL: {request.url}')
+    return jsonify({'error': 'Çok fazla istek gönderdiniz. Lütfen bekleyin.'}), 429
+
+
+# =============================================================================
+# UYGULAMA BAŞLATMA
+# =============================================================================
+
+def create_app():
+    """Render için uygulama oluşturma fonksiyonu"""
+    return app
+
+# Veritabanını başlat
+try:
+    init_db()
+    print("✅ Veritabanı başarıyla başlatıldı")
+except Exception as e:
+    print(f"❌ Veritabanı başlatılamadı: {e}")
+
+# Render'da otomatik başlatma
+if os.environ.get('RENDER') or os.environ.get('FLASK_ENV') == 'production':
+    create_app()
+
+if __name__ == '__main__':
+    try:
+        # Güvenlik kontrolü (sadece development'ta)
+        if os.environ.get('FLASK_ENV') != 'production' and not os.environ.get('SECRET_KEY'):
+            print("❌ SECRET_KEY environment variable bulunamadı!")
+            print("💡 .env dosyası oluşturun veya SECRET_KEY ayarlayın")
+            sys.exit(1)
+        
+        if not os.environ.get('MAIL_PASSWORD') and os.environ.get('EMAIL_ENABLED', 'True').lower() == 'true':
+            print("⚠️  MAIL_PASSWORD bulunamadı - Email sistemi devre dışı")
+            os.environ['EMAIL_ENABLED'] = 'False'
+        
+        # Production/Development port ayarı
+        port = int(os.environ.get('PORT', 8080))
+        debug = os.environ.get('FLASK_ENV') != 'production'
+        
+        print(f"🚀 Uygulama başlatılıyor - Port: {port}, Debug: {debug}")
+        app.run(host='0.0.0.0', port=port, debug=debug)
+        
+    except Exception as e:
+        print(f"❌ Uygulama başlatılamadı: {e}")
+        sys.exit(1)
