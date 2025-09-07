@@ -1212,6 +1212,124 @@ def contact_messages():
     flash('Veritabanı bağlantı hatası', 'error')
     return render_template('contact_messages.html', contact_messages=[])
 
+@app.route('/admin/contact-messages/<int:message_id>')
+@login_required
+def get_contact_message(message_id):
+    """Tek bir mesajı getir"""
+    conn = get_db_connection()
+    if conn:
+        try:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT id, name, email, message, is_read, created_at 
+                FROM contact_messages 
+                WHERE id = ?
+            ''', (message_id,))
+            
+            row = cursor.fetchone()
+            if row:
+                created_at = row[5]
+                if isinstance(created_at, str):
+                    try:
+                        created_at = datetime.strptime(created_at, '%Y-%m-%d %H:%M:%S').strftime('%d.%m.%Y %H:%M')
+                    except:
+                        created_at = created_at
+                
+                message = {
+                    'id': row[0],
+                    'name': row[1],
+                    'email': row[2],
+                    'message': row[3],
+                    'is_read': bool(row[4]),
+                    'created_at': created_at
+                }
+                
+                return jsonify({'success': True, 'message': message})
+            else:
+                return jsonify({'success': False, 'error': 'Mesaj bulunamadı'}), 404
+                
+        except Exception as e:
+            app.logger.error(f"Mesaj getirme hatası: {e}")
+            return jsonify({'success': False, 'error': str(e)}), 500
+        finally:
+            conn.close()
+    
+    return jsonify({'success': False, 'error': 'Veritabanı bağlantı hatası'}), 500
+
+@app.route('/admin/contact-messages/<int:message_id>/read', methods=['POST'])
+@login_required
+def mark_contact_message_read(message_id):
+    """Mesajı okundu olarak işaretle"""
+    conn = get_db_connection()
+    if conn:
+        try:
+            cursor = conn.cursor()
+            cursor.execute('''
+                UPDATE contact_messages 
+                SET is_read = 1 
+                WHERE id = ?
+            ''', (message_id,))
+            
+            if cursor.rowcount > 0:
+                conn.commit()
+                return jsonify({'success': True, 'message': 'Mesaj okundu olarak işaretlendi'})
+            else:
+                return jsonify({'success': False, 'error': 'Mesaj bulunamadı'}), 404
+                
+        except Exception as e:
+            app.logger.error(f"Mesaj okundu işaretleme hatası: {e}")
+            return jsonify({'success': False, 'error': str(e)}), 500
+        finally:
+            conn.close()
+    
+    return jsonify({'success': False, 'error': 'Veritabanı bağlantı hatası'}), 500
+
+@app.route('/admin/contact-messages/<int:message_id>', methods=['DELETE'])
+@login_required
+def delete_contact_message(message_id):
+    """Tek bir mesajı sil"""
+    conn = get_db_connection()
+    if conn:
+        try:
+            cursor = conn.cursor()
+            cursor.execute('DELETE FROM contact_messages WHERE id = ?', (message_id,))
+            
+            if cursor.rowcount > 0:
+                conn.commit()
+                return jsonify({'success': True, 'message': 'Mesaj başarıyla silindi'})
+            else:
+                return jsonify({'success': False, 'error': 'Mesaj bulunamadı'}), 404
+                
+        except Exception as e:
+            app.logger.error(f"Mesaj silme hatası: {e}")
+            return jsonify({'success': False, 'error': str(e)}), 500
+        finally:
+            conn.close()
+    
+    return jsonify({'success': False, 'error': 'Veritabanı bağlantı hatası'}), 500
+
+@app.route('/admin/contact-messages/delete-all', methods=['DELETE'])
+@login_required
+def delete_all_contact_messages():
+    """Tüm mesajları sil"""
+    conn = get_db_connection()
+    if conn:
+        try:
+            cursor = conn.cursor()
+            cursor.execute('DELETE FROM contact_messages')
+            deleted_count = cursor.rowcount
+            conn.commit()
+            
+            return jsonify({'success': True, 'message': f'{deleted_count} mesaj başarıyla silindi'})
+                
+        except Exception as e:
+            app.logger.error(f"Tüm mesajları silme hatası: {e}")
+            return jsonify({'success': False, 'error': str(e)}), 500
+        finally:
+            conn.close()
+    
+    return jsonify({'success': False, 'error': 'Veritabanı bağlantı hatası'}), 500
+
 
 # =============================================================================
 # HATA YÖNETİMİ
